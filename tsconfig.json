@@ -3,10 +3,17 @@
     "composite": true,
     "declaration": true,
     "declarationMap": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "strict": false,                // Disable strict type checking
+    "noImplicitAny": false,         // Allow variables to have an implicit "any" type
+    "noImplicitReturns": false,     // Allow functions to not explicitly return a value
+    "noFallthroughCasesInSwitch": false, // Allow fallthrough in switch statements
+    "esModuleInterop": true,        // Enable compatibility with CommonJS modules
+    "forceConsistentCasingInFileNames": true // Enforce consistent casing in imports
   },
   "files": [],
-  "include": [],
+  "include": ["**/*.ts"],            // Include all TypeScript files in the project
+  "exclude": ["node_modules"],      // Exclude node_modules to speed up compilation
   "references": [
     {
       "path": "./packages/backend"

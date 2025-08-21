@@ -1,11 +1,12 @@
 # Google Cloud Build configuration for Social SoloBoss Automation
 steps:
-  # Build shared package
+  # Install dependencies for the shared package
   - name: 'node:20'
     entrypoint: 'npm'
     args: ['ci']
     dir: '.'
 
+  # Build the shared package
   - name: 'node:20'
     entrypoint: 'npm'
     args: ['run', 'build', '--workspace=packages/shared']
@@ -16,9 +17,9 @@ steps:
     args:
       - 'build'
       - '-t'
-      - 'gcr.io/$PROJECT_ID/social-soloboss-backend:$COMMIT_SHA'
+      - 'gcr.io/social-soloboss-ai-automation/social-soloboss-backend:manual-build'
       - '-t'
-      - 'gcr.io/$PROJECT_ID/social-soloboss-backend:latest'
+      - 'gcr.io/social-soloboss-ai-automation/social-soloboss-backend:latest'
       - '-f'
       - 'packages/backend/Dockerfile.prod'
       - '.'
@@ -28,26 +29,26 @@ steps:
     args:
       - 'build'
       - '-t'
-      - 'gcr.io/$PROJECT_ID/social-soloboss-frontend:$COMMIT_SHA'
+      - 'gcr.io/social-soloboss-ai-automation/social-soloboss-frontend:manual-build'
       - '-t'
-      - 'gcr.io/$PROJECT_ID/social-soloboss-frontend:latest'
+      - 'gcr.io/social-soloboss-ai-automation/social-soloboss-frontend:latest'
       - '-f'
       - 'packages/frontend/Dockerfile.prod'
       - '.'
 
   # Push backend image to Container Registry
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'gcr.io/$PROJECT_ID/social-soloboss-backend:$COMMIT_SHA']
+    args: ['push', 'gcr.io/social-soloboss-ai-automation/social-soloboss-backend:manual-build']
 
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'gcr.io/$PROJECT_ID/social-soloboss-backend:latest']
+    args: ['push', 'gcr.io/social-soloboss-ai-automation/social-soloboss-backend:latest']
 
   # Push frontend image to Container Registry
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'gcr.io/$PROJECT_ID/social-soloboss-frontend:$COMMIT_SHA']
+    args: ['push', 'gcr.io/social-soloboss-ai-automation/social-soloboss-frontend:manual-build']
 
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'gcr.io/$PROJECT_ID/social-soloboss-frontend:latest']
+    args: ['push', 'gcr.io/social-soloboss-ai-automation/social-soloboss-frontend:latest']
 
   # Deploy backend to Cloud Run
   - name: 'gcr.io/cloud-builders/gcloud'
@@ -56,7 +57,7 @@ steps:
       - 'deploy'
       - 'social-soloboss-backend'
       - '--image'
-      - 'gcr.io/$PROJECT_ID/social-soloboss-backend:$COMMIT_SHA'
+      - 'gcr.io/social-soloboss-ai-automation/social-soloboss-backend:manual-build'
       - '--region'
       - 'us-central1'
       - '--platform'
@@ -80,7 +81,7 @@ steps:
       - 'deploy'
       - 'social-soloboss-frontend'
       - '--image'
-      - 'gcr.io/$PROJECT_ID/social-soloboss-frontend:$COMMIT_SHA'
+      - 'gcr.io/social-soloboss-ai-automation/social-soloboss-frontend:manual-build'
       - '--region'
       - 'us-central1'
       - '--platform'
