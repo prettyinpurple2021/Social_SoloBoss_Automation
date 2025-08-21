@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "composite": true,
+    "declaration": true,
+    "declarationMap": true,
+    "skipLibCheck": true
+  },
+  "files": [],
+  "include": [],
+  "references": [
+    {
+      "path": "./packages/backend"
+    },
+    {
+      "path": "./packages/frontend"
+    },
+    {
+      "path": "./packages/shared"
+    }
+  ]
+}
