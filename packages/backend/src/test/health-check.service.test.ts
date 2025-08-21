@@ -90,10 +90,9 @@ describe('HealthCheckService', () => {
 
   describe('Redis Health Check', () => {
     it('should return healthy status for successful Redis connection', async () => {
-      // Mock successful Redis ping
-      (redis.ping as jest.Mock).mockResolvedValue('PONG');
-      (redis.info as jest.Mock).mockResolvedValue('used_memory:1024\nused_memory_human:1K');
-      (redis as any).isReady = true;
+      // Mock successful Redis health check
+      (redis.healthCheck as jest.Mock).mockResolvedValue(true);
+      (redis.isReady as jest.Mock).mockReturnValue(true);
 
       const result = await HealthCheckService.checkService('redis');
       
@@ -110,12 +109,11 @@ describe('HealthCheckService', () => {
     });
 
     it('should return degraded status for slow Redis response', async () => {
-      // Mock slow Redis ping
-      (redis.ping as jest.Mock).mockImplementation(() => 
-        new Promise(resolve => setTimeout(() => resolve('PONG'), 1500))
+      // Mock slow Redis health check
+      (redis.healthCheck as jest.Mock).mockImplementation(() => 
+        new Promise(resolve => setTimeout(() => resolve(true), 1500))
       );
-      (redis.info as jest.Mock).mockResolvedValue('used_memory:1024');
-      (redis as any).isReady = true;
+      (redis.isReady as jest.Mock).mockReturnValue(true);
 
       const result = await HealthCheckService.checkService('redis');
       
@@ -126,7 +124,7 @@ describe('HealthCheckService', () => {
 
     it('should return unhealthy status for Redis connection failure', async () => {
       // Mock Redis connection failure
-      (redis.ping as jest.Mock).mockRejectedValue(new Error('Redis connection failed'));
+      (redis.healthCheck as jest.Mock).mockRejectedValue(new Error('Redis connection failed'));
 
       const result = await HealthCheckService.checkService('redis');
       
@@ -136,8 +134,8 @@ describe('HealthCheckService', () => {
     });
 
     it('should handle Redis timeout', async () => {
-      // Mock Redis ping that never resolves
-      (redis.ping as jest.Mock).mockImplementation(() => new Promise(() => {}));
+      // Mock Redis health check that never resolves
+      (redis.healthCheck as jest.Mock).mockImplementation(() => new Promise(() => {}));
 
       const result = await HealthCheckService.checkService('redis');
       
@@ -157,7 +155,7 @@ describe('HealthCheckService', () => {
         external: 10 * 1024 * 1024, // 10MB
         rss: 120 * 1024 * 1024, // 120MB
         arrayBuffers: 5 * 1024 * 1024, // 5MB
-      });
+      } as NodeJS.MemoryUsage);
 
       const result = await HealthCheckService.checkService('memory');
       
@@ -183,7 +181,7 @@ describe('HealthCheckService', () => {
         external: 0,
         rss: 100 * 1024 * 1024,
         arrayBuffers: 0,
-      });
+      } as NodeJS.MemoryUsage);
 
       const result = await HealthCheckService.checkService('memory');
       
@@ -203,7 +201,7 @@ describe('HealthCheckService', () => {
         external: 0,
         rss: 100 * 1024 * 1024,
         arrayBuffers: 0,
-      });
+      } as NodeJS.MemoryUsage);
 
       const result = await HealthCheckService.checkService('memory');
       
@@ -299,9 +297,8 @@ describe('HealthCheckService', () => {
       (db as any).idleCount = 5;
       (db as any).waitingCount = 0;
       
-      (redis.ping as jest.Mock).mockResolvedValue('PONG');
-      (redis.info as jest.Mock).mockResolvedValue('used_memory:1024');
-      (redis as any).isReady = true;
+      (redis.healthCheck as jest.Mock).mockResolvedValue(true);
+      (redis.isReady as jest.Mock).mockReturnValue(true);
 
       const originalMemoryUsage = process.memoryUsage;
       process.memoryUsage = jest.fn().mockReturnValue({
@@ -310,7 +307,7 @@ describe('HealthCheckService', () => {
         external: 10 * 1024 * 1024,
         rss: 120 * 1024 * 1024,
         arrayBuffers: 5 * 1024 * 1024,
-      });
+      } as NodeJS.MemoryUsage);
 
       const mockFs = {
         writeFile: jest.fn().mockResolvedValue(undefined),
@@ -343,9 +340,8 @@ describe('HealthCheckService', () => {
       (db as any).waitingCount = 0;
 
       // Mock other services as healthy
-      (redis.ping as jest.Mock).mockResolvedValue('PONG');
-      (redis.info as jest.Mock).mockResolvedValue('used_memory:1024');
-      (redis as any).isReady = true;
+      (redis.healthCheck as jest.Mock).mockResolvedValue(true);
+      (redis.isReady as jest.Mock).mockReturnValue(true);
 
       const originalMemoryUsage = process.memoryUsage;
       process.memoryUsage = jest.fn().mockReturnValue({
@@ -354,7 +350,7 @@ describe('HealthCheckService', () => {
         external: 10 * 1024 * 1024,
         rss: 120 * 1024 * 1024,
         arrayBuffers: 5 * 1024 * 1024,
-      });
+      } as NodeJS.MemoryUsage);
 
       const mockFs = {
         writeFile: jest.fn().mockResolvedValue(undefined),
@@ -380,9 +376,8 @@ describe('HealthCheckService', () => {
       (db.query as jest.Mock).mockRejectedValue(new Error('Database down'));
 
       // Mock other services as healthy
-      (redis.ping as jest.Mock).mockResolvedValue('PONG');
-      (redis.info as jest.Mock).mockResolvedValue('used_memory:1024');
-      (redis as any).isReady = true;
+      (redis.healthCheck as jest.Mock).mockResolvedValue(true);
+      (redis.isReady as jest.Mock).mockReturnValue(true);
 
       const originalMemoryUsage = process.memoryUsage;
       process.memoryUsage = jest.fn().mockReturnValue({
@@ -391,7 +386,7 @@ describe('HealthCheckService', () => {
         external: 10 * 1024 * 1024,
         rss: 120 * 1024 * 1024,
         arrayBuffers: 5 * 1024 * 1024,
-      });
+      } as NodeJS.MemoryUsage);
 
       const mockFs = {
         writeFile: jest.fn().mockResolvedValue(undefined),
@@ -423,9 +418,8 @@ describe('HealthCheckService', () => {
       (db as any).idleCount = 5;
       (db as any).waitingCount = 0;
       
-      (redis.ping as jest.Mock).mockResolvedValue('PONG');
-      (redis.info as jest.Mock).mockResolvedValue('used_memory:1024');
-      (redis as any).isReady = true;
+      (redis.healthCheck as jest.Mock).mockResolvedValue(true);
+      (redis.isReady as jest.Mock).mockReturnValue(true);
 
       const originalMemoryUsage = process.memoryUsage;
       process.memoryUsage = jest.fn().mockReturnValue({
@@ -434,7 +428,7 @@ describe('HealthCheckService', () => {
         external: 10 * 1024 * 1024,
         rss: 120 * 1024 * 1024,
         arrayBuffers: 5 * 1024 * 1024,
-      });
+      } as NodeJS.MemoryUsage);
 
       const mockFs = {
         writeFile: jest.fn().mockResolvedValue(undefined),
@@ -465,7 +459,7 @@ describe('HealthCheckService', () => {
     it('should handle service check failures gracefully in comprehensive check', async () => {
       // Mock all services to fail
       (db.query as jest.Mock).mockRejectedValue(new Error('DB error'));
-      (redis.ping as jest.Mock).mockRejectedValue(new Error('Redis error'));
+      (redis.healthCheck as jest.Mock).mockRejectedValue(new Error('Redis error'));
       
       const originalMemoryUsage = process.memoryUsage;
       process.memoryUsage = jest.fn().mockImplementation(() => {

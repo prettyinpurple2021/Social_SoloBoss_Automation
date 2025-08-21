@@ -28,7 +28,9 @@ import {
   X as XIcon,
   Schedule,
   CheckCircle,
-  Error
+  Error,
+  Edit,
+  Sync
 } from '@mui/icons-material';
 import { Post, PostStatus } from '@sma/shared/types/post';
 import { Platform } from '@sma/shared/types/platform';
@@ -59,14 +61,15 @@ const platformColors = {
 };
 
 const statusIcons = {
+  [PostStatus.DRAFT]: <Edit fontSize="small" />,
   [PostStatus.SCHEDULED]: <Schedule fontSize="small" />,
+  [PostStatus.PUBLISHING]: <Sync fontSize="small" />,
   [PostStatus.PUBLISHED]: <CheckCircle fontSize="small" />,
   [PostStatus.FAILED]: <Error fontSize="small" />
 };
 
 export const CalendarView: React.FC<CalendarViewProps> = ({
-  posts = [],
-  onPostClick
+  posts = []
 }) => {
   const [currentDate, setCurrentDate] = useState<Dayjs>(dayjs());
   const [selectedDate, setSelectedDate] = useState<Dayjs | null>(null);

@@ -13,7 +13,7 @@ describe('IntegrationService', () => {
   let mockPostData: PostData;
 
   beforeEach(() => {
-    integrationService = new IntegrationService();
+    integrationService = IntegrationService.getInstance();
     
     mockToken = {
       accessToken: 'mock_access_token',

@@ -65,7 +65,7 @@ export const Settings: React.FC = () => {
       setLoading(true);
       setError(null);
       const response = await settingsApi.getSettings();
-      if (response.success) {
+      if (response.success && response.settings) {
         setSettings(response.settings);
       } else {
         setError(response.error || 'Failed to load settings');
@@ -77,7 +77,7 @@ export const Settings: React.FC = () => {
     }
   };
 
-  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+  const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
   };
 
@@ -86,7 +86,7 @@ export const Settings: React.FC = () => {
       setError(null);
       setSuccess(null);
       const response = await settingsApi.updateSettings(updatedSettings);
-      if (response.success) {
+      if (response.success && response.settings) {
         setSettings(response.settings);
         setSuccess('Settings updated successfully');
         // Clear success message after 3 seconds
@@ -104,7 +104,7 @@ export const Settings: React.FC = () => {
       setError(null);
       setSuccess(null);
       const response = await settingsApi.updatePlatformPreferences(platformPreferences);
-      if (response.success) {
+      if (response.success && response.settings) {
         setSettings(response.settings);
         setSuccess('Platform preferences updated successfully');
         setTimeout(() => setSuccess(null), 3000);
@@ -121,7 +121,7 @@ export const Settings: React.FC = () => {
       setError(null);
       setSuccess(null);
       const response = await settingsApi.updateNotificationSettings(notificationSettings);
-      if (response.success) {
+      if (response.success && response.settings) {
         setSettings(response.settings);
         setSuccess('Notification settings updated successfully');
         setTimeout(() => setSuccess(null), 3000);
@@ -138,7 +138,7 @@ export const Settings: React.FC = () => {
       setError(null);
       setSuccess(null);
       const response = await settingsApi.resetSettings();
-      if (response.success) {
+      if (response.success && response.settings) {
         setSettings(response.settings);
         setSuccess('Settings reset to defaults successfully');
         setTimeout(() => setSuccess(null), 3000);

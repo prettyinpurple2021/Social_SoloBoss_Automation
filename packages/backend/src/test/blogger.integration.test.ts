@@ -8,8 +8,6 @@ import { db } from '../database';
 jest.mock('axios');
 jest.mock('rss-parser');
 
-
-
 const mockParseURL = jest.fn();
 const mockParseString = jest.fn();
 
@@ -55,7 +53,7 @@ describe('Blogger Integration Tests', () => {
         status: 200,
         data: '<?xml version="1.0"?><rss><channel><title>Test Blog</title></channel></rss>'
       });
-      mockParseURL.parseString.mockResolvedValue({});
+      mockParseString.mockResolvedValue({});
 
       const integration = await BloggerService.setupBloggerIntegration(testUserId, integrationSettings);
 
@@ -91,7 +89,7 @@ describe('Blogger Integration Tests', () => {
         ]
       };
 
-      mockParseURL.parseURL.mockResolvedValue(mockFeed);
+      mockParseURL.mockResolvedValue(mockFeed);
 
       // Step 3: Monitor the feed
       const monitorResult = await BloggerService.monitorBloggerFeed(integration);
@@ -134,7 +132,7 @@ describe('Blogger Integration Tests', () => {
         status: 200,
         data: '<?xml version="1.0"?><rss><channel><title>Test Blog</title></channel></rss>'
       });
-      mockParseURL.parseString.mockResolvedValue({});
+      mockParseString.mockResolvedValue({});
 
       const integration = await BloggerService.setupBloggerIntegration(testUserId, integrationSettings);
 
@@ -154,7 +152,7 @@ describe('Blogger Integration Tests', () => {
         ]
       };
 
-      mockParseURL.parseURL.mockResolvedValue(mockFeed);
+      mockParseURL.mockResolvedValue(mockFeed);
 
       // Monitor the feed
       await BloggerService.monitorBloggerFeed(integration);
@@ -183,7 +181,7 @@ describe('Blogger Integration Tests', () => {
         status: 200,
         data: '<?xml version="1.0"?><rss><channel><title>Test Blog</title></channel></rss>'
       });
-      mockParseURL.parseString.mockResolvedValue({});
+      mockParseString.mockResolvedValue({});
 
       const integration = await BloggerService.setupBloggerIntegration(testUserId, integrationSettings);
 
@@ -201,7 +199,7 @@ describe('Blogger Integration Tests', () => {
         ]
       };
 
-      mockParseURL.parseURL.mockResolvedValue(mockFeed);
+      mockParseURL.mockResolvedValue(mockFeed);
 
       // First monitoring run
       await BloggerService.monitorBloggerFeed(integration);
@@ -232,12 +230,12 @@ describe('Blogger Integration Tests', () => {
         status: 200,
         data: '<?xml version="1.0"?><rss><channel><title>Test Blog</title></channel></rss>'
       });
-      mockParseURL.parseString.mockResolvedValue({});
+      mockParseString.mockResolvedValue({});
 
       const integration = await BloggerService.setupBloggerIntegration(testUserId, integrationSettings);
 
       // Mock RSS parsing error
-      mockParseURL.parseURL.mockRejectedValue(new Error('Network timeout'));
+      mockParseURL.mockRejectedValue(new Error('Network timeout'));
 
       // Monitor should throw error
       await expect(BloggerService.monitorBloggerFeed(integration))
@@ -264,7 +262,7 @@ describe('Blogger Integration Tests', () => {
         status: 200,
         data: '<?xml version="1.0"?><rss><channel><title>Test Blog</title></channel></rss>'
       });
-      mockParseURL.parseString.mockResolvedValue({});
+      mockParseString.mockResolvedValue({});
 
       const integration = await BloggerService.setupBloggerIntegration(testUserId, integrationSettings);
 
@@ -284,7 +282,7 @@ describe('Blogger Integration Tests', () => {
         ]
       };
 
-      mockParseURL.parseURL.mockResolvedValue(mockFeed);
+      mockParseURL.mockResolvedValue(mockFeed);
 
       await BloggerService.monitorBloggerFeed(integration);
 
@@ -317,7 +315,7 @@ describe('Blogger Integration Tests', () => {
         status: 200,
         data: '<?xml version="1.0"?><rss><channel><title>Test Blog</title></channel></rss>'
       });
-      mockParseURL.parseString.mockResolvedValue({});
+      mockParseString.mockResolvedValue({});
 
       const integration = await BloggerService.setupBloggerIntegration(testUserId, integrationSettings);
 
@@ -335,7 +333,7 @@ describe('Blogger Integration Tests', () => {
         ]
       };
 
-      mockParseURL.parseURL.mockResolvedValue(mockFeed);
+      mockParseURL.mockResolvedValue(mockFeed);
 
       await BloggerService.monitorBloggerFeed(integration);
 

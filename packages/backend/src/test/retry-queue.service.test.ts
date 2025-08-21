@@ -125,7 +125,14 @@ describe('RetryQueueService', () => {
         platformPosts: [{ platform: Platform.FACEBOOK, content: 'Test post' }],
       };
       (PostService.getPost as jest.Mock).mockResolvedValue(mockPost);
-      (IntegrationService.publishPost as jest.Mock).mockResolvedValue({ success: true });
+      const mockIntegrationService = {
+        publishPost: jest.fn().mockResolvedValue({ 
+          success: false, 
+          error: 'Publishing failed',
+          retryable: true 
+        })
+      };
+      (IntegrationService.getInstance as jest.Mock).mockReturnValue(mockIntegrationService);
       (PostService.updatePostStatus as jest.Mock).mockResolvedValue(true);
 
       const success = await retryQueueService.manualRetry(jobId);
@@ -278,7 +285,14 @@ describe('RetryQueueService', () => {
         platformPosts: [{ platform: Platform.FACEBOOK, content: 'Test post' }],
       };
       (PostService.getPost as jest.Mock).mockResolvedValue(mockPost);
-      (IntegrationService.publishPost as jest.Mock).mockResolvedValue({ success: true });
+      const mockIntegrationService = {
+        publishPost: jest.fn().mockResolvedValue({ 
+          success: false, 
+          error: 'Publishing failed',
+          retryable: true 
+        })
+      };
+      (IntegrationService.getInstance as jest.Mock).mockReturnValue(mockIntegrationService);
       (PostService.updatePostStatus as jest.Mock).mockResolvedValue(true);
 
       // Process the job
@@ -306,11 +320,14 @@ describe('RetryQueueService', () => {
         platformPosts: [{ platform: Platform.FACEBOOK, content: 'Test post' }],
       };
       (PostService.getPost as jest.Mock).mockResolvedValue(mockPost);
-      (IntegrationService.publishPost as jest.Mock).mockResolvedValue({ 
-        success: false, 
-        error: 'Publishing failed',
-        retryable: true 
-      });
+      const mockIntegrationService2 = {
+        publishPost: jest.fn().mockResolvedValue({ 
+          success: false, 
+          error: 'Publishing failed',
+          retryable: true 
+        })
+      };
+      (IntegrationService.getInstance as jest.Mock).mockReturnValue(mockIntegrationService2);
 
       // Process the job
       const service = retryQueueService as any;
@@ -336,11 +353,14 @@ describe('RetryQueueService', () => {
         platformPosts: [{ platform: Platform.FACEBOOK, content: 'Test post' }],
       };
       (PostService.getPost as jest.Mock).mockResolvedValue(mockPost);
-      (IntegrationService.publishPost as jest.Mock).mockResolvedValue({ 
-        success: false, 
-        error: 'Publishing failed',
-        retryable: true 
-      });
+      const mockIntegrationService2 = {
+        publishPost: jest.fn().mockResolvedValue({ 
+          success: false, 
+          error: 'Publishing failed',
+          retryable: true 
+        })
+      };
+      (IntegrationService.getInstance as jest.Mock).mockReturnValue(mockIntegrationService2);
 
       // Process the job (should exhaust attempts)
       const service = retryQueueService as any;

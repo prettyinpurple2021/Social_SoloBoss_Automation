@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { HealthCheckService } from '../services/HealthCheckService';
 import { RetryQueueService, retryQueueService } from '../services/RetryQueueService';
 import { NotificationService } from '../services/NotificationService';
@@ -12,7 +12,7 @@ const router = Router();
  * Basic health check endpoint
  * GET /health
  */
-router.get('/', ErrorHandlerMiddleware.asyncHandler(async (req, res) => {
+router.get('/', ErrorHandlerMiddleware.asyncHandler(async (req: Request, res: Response) => {
   const health = await HealthCheckService.getBasicHealth();
   res.json({
     success: true,
@@ -24,7 +24,7 @@ router.get('/', ErrorHandlerMiddleware.asyncHandler(async (req, res) => {
  * Comprehensive health check endpoint
  * GET /health/detailed
  */
-router.get('/detailed', ErrorHandlerMiddleware.asyncHandler(async (req, res) => {
+router.get('/detailed', ErrorHandlerMiddleware.asyncHandler(async (req: Request, res: Response) => {
   const health = await HealthCheckService.performHealthCheck();
   
   // Set appropriate status code based on health
@@ -41,7 +41,7 @@ router.get('/detailed', ErrorHandlerMiddleware.asyncHandler(async (req, res) => 
  * Check specific service health
  * GET /health/service/:serviceName
  */
-router.get('/service/:serviceName', ErrorHandlerMiddleware.asyncHandler(async (req, res) => {
+router.get('/service/:serviceName', ErrorHandlerMiddleware.asyncHandler(async (req: Request, res: Response) => {
   const { serviceName } = req.params;
   
   try {
@@ -67,7 +67,7 @@ router.get('/service/:serviceName', ErrorHandlerMiddleware.asyncHandler(async (r
  * Get retry queue statistics
  * GET /health/retry-queue/stats
  */
-router.get('/retry-queue/stats', authMiddleware, ErrorHandlerMiddleware.asyncHandler(async (req, res) => {
+router.get('/retry-queue/stats', authMiddleware, ErrorHandlerMiddleware.asyncHandler(async (req: Request, res: Response) => {
   const stats = retryQueueService.getStats();
   
   res.json({
@@ -80,7 +80,7 @@ router.get('/retry-queue/stats', authMiddleware, ErrorHandlerMiddleware.asyncHan
  * Get retry jobs
  * GET /health/retry-queue/jobs
  */
-router.get('/retry-queue/jobs', authMiddleware, ErrorHandlerMiddleware.asyncHandler(async (req, res) => {
+router.get('/retry-queue/jobs', authMiddleware, ErrorHandlerMiddleware.asyncHandler(async (req: Request, res: Response) => {
   const { type, status } = req.query;
   const userId = req.user?.id;
   
@@ -100,7 +100,7 @@ router.get('/retry-queue/jobs', authMiddleware, ErrorHandlerMiddleware.asyncHand
  * Manually retry a specific job
  * POST /health/retry-queue/jobs/:jobId/retry
  */
-router.post('/retry-queue/jobs/:jobId/retry', authMiddleware, ErrorHandlerMiddleware.asyncHandler(async (req, res) => {
+router.post('/retry-queue/jobs/:jobId/retry', authMiddleware, ErrorHandlerMiddleware.asyncHandler(async (req: Request, res: Response) => {
   const { jobId } = req.params;
   
   const success = await retryQueueService.manualRetry(jobId);
@@ -123,7 +123,7 @@ router.post('/retry-queue/jobs/:jobId/retry', authMiddleware, ErrorHandlerMiddle
  * Cancel a retry job
  * DELETE /health/retry-queue/jobs/:jobId
  */
-router.delete('/retry-queue/jobs/:jobId', authMiddleware, ErrorHandlerMiddleware.asyncHandler(async (req, res) => {
+router.delete('/retry-queue/jobs/:jobId', authMiddleware, ErrorHandlerMiddleware.asyncHandler(async (req: Request, res: Response) => {
   const { jobId } = req.params;
   
   const success = retryQueueService.cancelRetry(jobId);
@@ -146,7 +146,7 @@ router.delete('/retry-queue/jobs/:jobId', authMiddleware, ErrorHandlerMiddleware
  * Get error notifications
  * GET /health/notifications/errors
  */
-router.get('/notifications/errors', authMiddleware, ErrorHandlerMiddleware.asyncHandler(async (req, res) => {
+router.get('/notifications/errors', authMiddleware, ErrorHandlerMiddleware.asyncHandler(async (req: Request, res: Response) => {
   const { acknowledged } = req.query;
   
   const notifications = NotificationService.getErrorNotifications(
@@ -163,7 +163,7 @@ router.get('/notifications/errors', authMiddleware, ErrorHandlerMiddleware.async
  * Get post failure notifications
  * GET /health/notifications/post-failures
  */
-router.get('/notifications/post-failures', authMiddleware, ErrorHandlerMiddleware.asyncHandler(async (req, res) => {
+router.get('/notifications/post-failures', authMiddleware, ErrorHandlerMiddleware.asyncHandler(async (req: Request, res: Response) => {
   const userId = req.user?.id;
   
   const notifications = NotificationService.getPostFailureNotifications(userId);
@@ -178,7 +178,7 @@ router.get('/notifications/post-failures', authMiddleware, ErrorHandlerMiddlewar
  * Acknowledge error notification
  * POST /health/notifications/errors/:notificationId/acknowledge
  */
-router.post('/notifications/errors/:notificationId/acknowledge', authMiddleware, ErrorHandlerMiddleware.asyncHandler(async (req, res) => {
+router.post('/notifications/errors/:notificationId/acknowledge', authMiddleware, ErrorHandlerMiddleware.asyncHandler(async (req: Request, res: Response) => {
   const { notificationId } = req.params;
   const userId = req.user?.id;
   

@@ -2,8 +2,6 @@ import React, { useState } from 'react';
 import {
   Box,
   Container,
-  Grid,
-  Paper,
   Typography,
   Tabs,
   Tab,
@@ -12,7 +10,8 @@ import {
   Button,
   IconButton,
   Menu,
-  MenuItem
+  MenuItem,
+  Paper
 } from '@mui/material';
 import {
   Dashboard as DashboardIcon,
@@ -25,8 +24,7 @@ import { PostsList } from './PostsList';
 import { CalendarView } from './CalendarView';
 import { PlatformConnections } from './PlatformConnections';
 import { PostForm } from './PostForm';
-import { Post } from '@sma/shared/types/post';
-import { PlatformConnection } from '@sma/shared/types/platform';
+
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -55,7 +53,7 @@ export const Dashboard: React.FC = () => {
   const [showPostForm, setShowPostForm] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
 
-  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+  const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
   };
 

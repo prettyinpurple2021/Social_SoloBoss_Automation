@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { vi } from 'vitest';
 import { Settings } from '../Settings';
@@ -11,7 +11,7 @@ const mockSettingsApi = settingsApi as any;
 
 // Mock the child components
 vi.mock('../GeneralSettings', () => ({
-  GeneralSettings: ({ settings, onUpdate, onReset }: any) => (
+  GeneralSettings: ({ onUpdate, onReset }: any) => (
     <div data-testid="general-settings">
       <button onClick={() => onUpdate({ timezone: 'America/New_York' })}>
         Update Settings
@@ -22,7 +22,7 @@ vi.mock('../GeneralSettings', () => ({
 }));
 
 vi.mock('../PlatformSettings', () => ({
-  PlatformSettings: ({ platformPreferences, onUpdate }: any) => (
+  PlatformSettings: ({ onUpdate }: any) => (
     <div data-testid="platform-settings">
       <button onClick={() => onUpdate({ facebook: { autoPost: true } })}>
         Update Platform
@@ -32,7 +32,7 @@ vi.mock('../PlatformSettings', () => ({
 }));
 
 vi.mock('../NotificationSettings', () => ({
-  NotificationSettings: ({ notificationSettings, onUpdate }: any) => (
+  NotificationSettings: ({ onUpdate }: any) => (
     <div data-testid="notification-settings">
       <button onClick={() => onUpdate({ emailNotifications: false })}>
         Update Notifications
