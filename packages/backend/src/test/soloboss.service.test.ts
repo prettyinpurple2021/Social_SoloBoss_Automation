@@ -24,7 +24,7 @@ describe('SoloBossService', () => {
   let testUserId: string;
 
   beforeEach(async () => {
-    soloBossService = new SoloBossService(testDb);
+    soloBossService = new SoloBossService(testDb as any);
     
     // Create test user
     const userResult = await testDb.query(
@@ -202,7 +202,7 @@ describe('SoloBossService', () => {
   describe('processWebhookContent', () => {
     beforeEach(() => {
       // Mock PostService.createPost to return a mock post
-      (PostService.createPost as jest.Mock).mockResolvedValue({
+      (PostService.createPost as any).mockResolvedValue({
         id: 'mock-post-id',
         user_id: testUserId,
         content: 'Mock content',
@@ -215,7 +215,7 @@ describe('SoloBossService', () => {
         created_at: new Date(),
         updated_at: new Date(),
         platformPosts: []
-      });
+      } as any);
     });
 
     it('should process webhook content successfully', async () => {
@@ -316,7 +316,7 @@ describe('SoloBossService', () => {
       
       expect(post.platformSpecificContent).toBeDefined();
       expect(post.platformSpecificContent?.x.content.length).toBeLessThanOrEqual(280);
-      expect(post.platformSpecificContent?.instagram.hashtags.length).toBeGreaterThan(0);
+      expect(post.platformSpecificContent?.instagram.hashtags?.length).toBeGreaterThan(0);
       expect(post.platformSpecificContent?.pinterest.images).toHaveLength(1);
     });
   });
@@ -327,7 +327,7 @@ describe('SoloBossService', () => {
         posts: [
           {
             userId: testUserId,
-            platforms: ['facebook', 'instagram'],
+            platforms: ['facebook', 'instagram'] as any,
             content: 'Test social media post',
             images: ['https://example.com/image.jpg'],
             hashtags: ['#test', '#content'],
@@ -347,7 +347,7 @@ describe('SoloBossService', () => {
       };
 
       // Mock PostService.createPost
-      (PostService.createPost as jest.Mock).mockResolvedValue({
+      (PostService.createPost as any).mockResolvedValue({
         id: 'created-post-id',
         user_id: testUserId,
         content: 'Test social media post',
@@ -360,7 +360,7 @@ describe('SoloBossService', () => {
         created_at: new Date(),
         updated_at: new Date(),
         platformPosts: []
-      });
+      } as any);
 
       const postIds = await soloBossService.createDraftPostsFromSoloBoss(testUserId, processedContent);
 
@@ -381,7 +381,7 @@ describe('SoloBossService', () => {
         posts: [
           {
             userId: testUserId,
-            platforms: ['facebook'],
+            platforms: ['facebook'] as any,
             content: 'Test post 1',
             images: [],
             hashtags: [],
@@ -389,7 +389,7 @@ describe('SoloBossService', () => {
           },
           {
             userId: testUserId,
-            platforms: ['instagram'],
+            platforms: ['instagram'] as any,
             content: 'Test post 2',
             images: [],
             hashtags: [],
@@ -409,7 +409,7 @@ describe('SoloBossService', () => {
       };
 
       // Mock first call to succeed, second to fail
-      (PostService.createPost as jest.Mock)
+      (PostService.createPost as any)
         .mockResolvedValueOnce({
           id: 'success-post-id',
           user_id: testUserId,
@@ -423,7 +423,7 @@ describe('SoloBossService', () => {
           created_at: new Date(),
           updated_at: new Date(),
           platformPosts: []
-        })
+        } as any)
         .mockRejectedValueOnce(new Error('Database error'));
 
       const postIds = await soloBossService.createDraftPostsFromSoloBoss(testUserId, processedContent);

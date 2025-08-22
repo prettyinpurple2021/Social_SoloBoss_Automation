@@ -34,7 +34,7 @@ describe('SoloBoss Routes', () => {
   beforeEach(async () => {
     app = express();
     app.use(express.json());
-    app.use('/api/soloboss', createSoloBossRoutes(testDb));
+    app.use('/api/soloboss', createSoloBossRoutes(testDb as any));
 
     // Create test user
     const userResult = await testDb.query(
@@ -183,7 +183,7 @@ describe('SoloBoss Routes', () => {
       ];
 
       const { PostService } = await import('../services/PostService');
-      (PostService.getPostsByUserAndSource as jest.Mock).mockResolvedValue(mockPosts as any);
+      (PostService.getPostsByUserAndSource as any).mockResolvedValue(mockPosts);
 
       const response = await request(app)
         .get('/api/soloboss/pending-posts')
@@ -216,8 +216,8 @@ describe('SoloBoss Routes', () => {
       };
 
       const { PostService } = await import('../services/PostService');
-      (PostService.getPost as jest.Mock).mockResolvedValue(mockPost as any);
-      (PostService.updatePost as jest.Mock).mockResolvedValue(updatedPost as any);
+      (PostService.getPost as any).mockResolvedValue(mockPost);
+      (PostService.updatePost as any).mockResolvedValue(updatedPost);
 
       const customizations = {
         content: 'Updated content',
@@ -244,7 +244,7 @@ describe('SoloBoss Routes', () => {
       };
 
       const { PostService } = await import('../services/PostService');
-      vi.mocked(PostService.getPost).mockResolvedValue(mockPost as any);
+      (PostService.getPost as any).mockResolvedValue(mockPost);
 
       const response = await request(app)
         .put('/api/soloboss/posts/post-1/customize')
@@ -271,9 +271,9 @@ describe('SoloBoss Routes', () => {
       };
 
       const { PostService } = await import('../services/PostService');
-      (PostService.getPost as jest.Mock).mockResolvedValue(mockPost as any);
-      (PostService.updatePost as jest.Mock).mockResolvedValue(scheduledPost as any);
-      (PostService.updatePostStatus as jest.Mock).mockResolvedValue(scheduledPost as any);
+      (PostService.getPost as any).mockResolvedValue(mockPost);
+      (PostService.updatePost as any).mockResolvedValue(scheduledPost);
+      (PostService.updatePostStatus as any).mockResolvedValue(scheduledPost);
 
       const response = await request(app)
         .post('/api/soloboss/posts/post-1/approve')
@@ -298,8 +298,8 @@ describe('SoloBoss Routes', () => {
       };
 
       const { PostService } = await import('../services/PostService');
-      (PostService.getPost as jest.Mock).mockResolvedValue(mockPost as any);
-      (PostService.updatePostStatus as jest.Mock).mockResolvedValue(approvedPost as any);
+      (PostService.getPost as any).mockResolvedValue(mockPost);
+      (PostService.updatePostStatus as any).mockResolvedValue(approvedPost);
 
       const response = await request(app)
         .post('/api/soloboss/posts/post-1/approve')
@@ -320,8 +320,8 @@ describe('SoloBoss Routes', () => {
       };
 
       const { PostService } = await import('../services/PostService');
-      (PostService.getPost as jest.Mock).mockResolvedValue(mockPost as any);
-      (PostService.deletePost as jest.Mock).mockResolvedValue(true);
+      (PostService.getPost as any).mockResolvedValue(mockPost);
+      (PostService.deletePost as any).mockResolvedValue(true);
 
       const response = await request(app)
         .delete('/api/soloboss/posts/post-1')
@@ -371,7 +371,7 @@ describe('SoloBoss Routes', () => {
       };
 
       const { PostService } = await import('../services/PostService');
-      (PostService.createPost as jest.Mock).mockResolvedValue({
+      (PostService.createPost as any).mockResolvedValue({
         id: 'created-post-id',
         user_id: testUserId,
         content: 'Check out my latest blog post!',
@@ -384,7 +384,7 @@ describe('SoloBoss Routes', () => {
         created_at: new Date(),
         updated_at: new Date(),
         platformPosts: []
-      });
+      } as any);
 
       const response = await request(app)
         .post('/api/soloboss/webhook')

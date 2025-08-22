@@ -149,7 +149,7 @@ describe('HealthCheckService', () => {
     it('should return healthy status for normal memory usage', async () => {
       // Mock process.memoryUsage
       const originalMemoryUsage = process.memoryUsage;
-      process.memoryUsage = jest.fn().mockReturnValue({
+      (process.memoryUsage as any) = jest.fn().mockReturnValue({
         heapUsed: 50 * 1024 * 1024, // 50MB
         heapTotal: 100 * 1024 * 1024, // 100MB
         external: 10 * 1024 * 1024, // 10MB
@@ -175,7 +175,7 @@ describe('HealthCheckService', () => {
     it('should return degraded status for high memory usage', async () => {
       // Mock high memory usage
       const originalMemoryUsage = process.memoryUsage;
-      process.memoryUsage = jest.fn().mockReturnValue({
+      (process.memoryUsage as any) = jest.fn().mockReturnValue({
         heapUsed: 80 * 1024 * 1024, // 80MB
         heapTotal: 100 * 1024 * 1024, // 100MB
         external: 0,
@@ -195,7 +195,7 @@ describe('HealthCheckService', () => {
     it('should return unhealthy status for critical memory usage', async () => {
       // Mock critical memory usage
       const originalMemoryUsage = process.memoryUsage;
-      process.memoryUsage = jest.fn().mockReturnValue({
+      (process.memoryUsage as any) = jest.fn().mockReturnValue({
         heapUsed: 95 * 1024 * 1024, // 95MB
         heapTotal: 100 * 1024 * 1024, // 100MB
         external: 0,
@@ -301,7 +301,7 @@ describe('HealthCheckService', () => {
       (redis.isReady as jest.Mock).mockReturnValue(true);
 
       const originalMemoryUsage = process.memoryUsage;
-      process.memoryUsage = jest.fn().mockReturnValue({
+      (process.memoryUsage as any) = jest.fn().mockReturnValue({
         heapUsed: 50 * 1024 * 1024,
         heapTotal: 100 * 1024 * 1024,
         external: 10 * 1024 * 1024,
@@ -344,7 +344,7 @@ describe('HealthCheckService', () => {
       (redis.isReady as jest.Mock).mockReturnValue(true);
 
       const originalMemoryUsage = process.memoryUsage;
-      process.memoryUsage = jest.fn().mockReturnValue({
+      (process.memoryUsage as any) = jest.fn().mockReturnValue({
         heapUsed: 50 * 1024 * 1024,
         heapTotal: 100 * 1024 * 1024,
         external: 10 * 1024 * 1024,
@@ -380,7 +380,7 @@ describe('HealthCheckService', () => {
       (redis.isReady as jest.Mock).mockReturnValue(true);
 
       const originalMemoryUsage = process.memoryUsage;
-      process.memoryUsage = jest.fn().mockReturnValue({
+      (process.memoryUsage as any) = jest.fn().mockReturnValue({
         heapUsed: 50 * 1024 * 1024,
         heapTotal: 100 * 1024 * 1024,
         external: 10 * 1024 * 1024,
@@ -422,7 +422,7 @@ describe('HealthCheckService', () => {
       (redis.isReady as jest.Mock).mockReturnValue(true);
 
       const originalMemoryUsage = process.memoryUsage;
-      process.memoryUsage = jest.fn().mockReturnValue({
+      (process.memoryUsage as any) = jest.fn().mockReturnValue({
         heapUsed: 50 * 1024 * 1024,
         heapTotal: 100 * 1024 * 1024,
         external: 10 * 1024 * 1024,
@@ -462,7 +462,7 @@ describe('HealthCheckService', () => {
       (redis.healthCheck as jest.Mock).mockRejectedValue(new Error('Redis error'));
       
       const originalMemoryUsage = process.memoryUsage;
-      process.memoryUsage = jest.fn().mockImplementation(() => {
+      (process.memoryUsage as any) = jest.fn().mockImplementation(() => {
         throw new Error('Memory error');
       });
 

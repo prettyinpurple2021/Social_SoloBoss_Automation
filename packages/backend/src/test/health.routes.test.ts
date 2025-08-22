@@ -238,7 +238,7 @@ describe('Health Routes', () => {
       const mockJobs = [
         {
           id: 'job1',
-          type: 'post_publish',
+          type: 'post_publish' as const,
           data: { postId: 'post1', userId: 'user123', platform: 'facebook' },
           attempts: 1,
           maxAttempts: 3,
@@ -269,7 +269,7 @@ describe('Health Routes', () => {
       const mockJobs = [
         {
           id: 'job1',
-          type: 'post_publish',
+          type: 'post_publish' as const,
           data: { postId: 'post1', userId: 'user123', platform: 'facebook' },
           attempts: 1,
           maxAttempts: 3,

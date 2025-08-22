@@ -42,7 +42,7 @@ vi.mock('../NotificationSettings', () => ({
 }));
 
 vi.mock('../IntegrationSettings', () => ({
-  IntegrationSettings: ({ settings, onUpdate }: any) => (
+  IntegrationSettings: ({ onUpdate }: any) => (
     <div data-testid="integration-settings">
       <button onClick={() => onUpdate({ bloggerIntegrationEnabled: true })}>
         Update Integrations

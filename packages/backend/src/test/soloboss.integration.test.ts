@@ -14,7 +14,7 @@ describe('SoloBoss Integration Tests', () => {
   let testUserId: string;
 
   beforeEach(async () => {
-    soloBossService = new SoloBossService(testDb);
+    soloBossService = new SoloBossService(testDb as any);
     
     // Create test user
     const userResult = await testDb.query(
@@ -99,13 +99,13 @@ describe('SoloBoss Integration Tests', () => {
       expect(generatedPost.userId).toBe(testUserId);
       expect(generatedPost.content).toContain('social media automation');
       expect(generatedPost.images).toHaveLength(3);
-      expect(generatedPost.hashtags.length).toBeGreaterThan(0);
+      expect(generatedPost.hashtags?.length).toBeGreaterThan(0);
       expect(generatedPost.platforms).toEqual(['facebook', 'instagram', 'pinterest', 'x']);
 
       // Verify platform-specific content
       expect(generatedPost.platformSpecificContent).toBeDefined();
       expect(generatedPost.platformSpecificContent?.x.content.length).toBeLessThanOrEqual(280);
-      expect(generatedPost.platformSpecificContent?.instagram.hashtags.length).toBeGreaterThan(0);
+      expect(generatedPost.platformSpecificContent?.instagram.hashtags?.length).toBeGreaterThan(0);
       expect(generatedPost.platformSpecificContent?.pinterest.images).toHaveLength(1);
 
       // Step 6: Create draft posts in database
