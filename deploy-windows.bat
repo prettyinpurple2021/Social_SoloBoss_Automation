@@ -29,10 +29,9 @@ if errorlevel 1 (
 REM Check if terraform is installed
 terraform --version >nul 2>&1
 if errorlevel 1 (
-    echo ERROR: Terraform is not installed or not in PATH
-    echo Please install Terraform first
-    pause
-    exit /b 1
+    echo WARNING: Terraform is not installed or not in PATH
+    echo Skipping infrastructure setup and proceeding with Cloud Build only
+    set SKIP_TERRAFORM=true
 )
 
 echo Setting up Google Cloud project...
@@ -48,35 +47,36 @@ gcloud services enable redis.googleapis.com
 gcloud services enable secretmanager.googleapis.com
 gcloud services enable cloudscheduler.googleapis.com
 
-echo.
-echo Initializing Terraform...
-cd terraform
-terraform init
+if not defined SKIP_TERRAFORM (
+    echo.
+    echo Initializing Terraform...
+    cd terraform
+    terraform init
 
-echo.
-echo Planning Terraform deployment...
-terraform plan -var="project_id=%PROJECT_ID%" -var="region=%REGION%" -var="environment=%ENVIRONMENT%"
+    echo.
+    echo Planning Terraform deployment...
+    terraform plan -var="project_id=%PROJECT_ID%" -var="region=%REGION%" -var="environment=%ENVIRONMENT%"
 
-echo.
-set /p CONTINUE="Do you want to proceed with the deployment? (y/N): "
-if /i not "%CONTINUE%"=="y" (
-    echo Deployment cancelled.
-    pause
-    exit /b 1
+    echo.
+    echo Proceeding with deployment...
+
+    echo.
+    echo Applying Terraform configuration...
+    terraform apply -var="project_id=%PROJECT_ID%" -var="region=%REGION%" -var="environment=%ENVIRONMENT%" -auto-approve
+
+    echo.
+    echo Getting infrastructure details...
+    for /f "delims=" %%i in ('terraform output -raw database_connection_string') do set DB_CONNECTION=%%i
+    for /f "delims=" %%i in ('terraform output -raw redis_host') do set REDIS_HOST=%%i
+    for /f "delims=" %%i in ('terraform output -raw redis_port') do set REDIS_PORT=%%i
+    for /f "delims=" %%i in ('terraform output -raw service_account_email') do set SERVICE_ACCOUNT=%%i
+
+    cd ..
+) else (
+    echo.
+    echo Skipping Terraform infrastructure setup...
+    echo Using default environment variables for Cloud Build...
 )
-
-echo.
-echo Applying Terraform configuration...
-terraform apply -var="project_id=%PROJECT_ID%" -var="region=%REGION%" -var="environment=%ENVIRONMENT%" -auto-approve
-
-echo.
-echo Getting infrastructure details...
-for /f "delims=" %%i in ('terraform output -raw database_connection_string') do set DB_CONNECTION=%%i
-for /f "delims=" %%i in ('terraform output -raw redis_host') do set REDIS_HOST=%%i
-for /f "delims=" %%i in ('terraform output -raw redis_port') do set REDIS_PORT=%%i
-for /f "delims=" %%i in ('terraform output -raw service_account_email') do set SERVICE_ACCOUNT=%%i
-
-cd ..
 
 echo.
 echo Building and deploying application...
@@ -85,23 +85,30 @@ gcloud builds submit --config=cloudbuild.yaml
 echo.
 echo Configuring Cloud Run services...
 
-REM Backend environment variables
-gcloud run services update social-soloboss-backend --region=%REGION% --set-env-vars="NODE_ENV=production" --set-env-vars="DATABASE_URL=%DB_CONNECTION%" --set-env-vars="REDIS_URL=redis://%REDIS_HOST%:%REDIS_PORT%" --set-secrets="JWT_SECRET=jwt-secret-%ENVIRONMENT%:latest" --set-secrets="ENCRYPTION_KEY=encryption-key-%ENVIRONMENT%:latest" --service-account=%SERVICE_ACCOUNT%
+if not defined SKIP_TERRAFORM (
+    REM Backend environment variables
+    gcloud run services update social-soloboss-backend --region=%REGION% --set-env-vars="NODE_ENV=production" --set-env-vars="DATABASE_URL=%DB_CONNECTION%" --set-env-vars="REDIS_URL=redis://%REDIS_HOST%:%REDIS_PORT%" --set-secrets="JWT_SECRET=jwt-secret-%ENVIRONMENT%:latest" --set-secrets="ENCRYPTION_KEY=encryption-key-%ENVIRONMENT%:latest" --service-account=%SERVICE_ACCOUNT%
 
-REM Get backend URL
-for /f "delims=" %%i in ('gcloud run services describe social-soloboss-backend --region=%REGION% --format="value(status.url)"') do set BACKEND_URL=%%i
+    REM Get backend URL
+    for /f "delims=" %%i in ('gcloud run services describe social-soloboss-backend --region=%REGION% --format="value(status.url)"') do set BACKEND_URL=%%i
 
-REM Frontend environment variables
-gcloud run services update social-soloboss-frontend --region=%REGION% --set-env-vars="VITE_API_URL=%BACKEND_URL%/api" --set-env-vars="VITE_APP_NAME=Social SoloBoss Automation"
+    REM Frontend environment variables
+    gcloud run services update social-soloboss-frontend --region=%REGION% --set-env-vars="VITE_API_URL=%BACKEND_URL%/api" --set-env-vars="VITE_APP_NAME=Social SoloBoss Automation"
 
-REM Get frontend URL
-for /f "delims=" %%i in ('gcloud run services describe social-soloboss-frontend --region=%REGION% --format="value(status.url)"') do set FRONTEND_URL=%%i
+    REM Get frontend URL
+    for /f "delims=" %%i in ('gcloud run services describe social-soloboss-frontend --region=%REGION% --format="value(status.url)"') do set FRONTEND_URL=%%i
 
-echo.
-echo Running database migrations...
-gcloud run jobs create social-soloboss-migrate --image=gcr.io/%PROJECT_ID%/social-soloboss-backend:latest --region=%REGION% --set-env-vars="NODE_ENV=production" --set-env-vars="DATABASE_URL=%DB_CONNECTION%" --set-secrets="JWT_SECRET=jwt-secret-%ENVIRONMENT%:latest" --set-secrets="ENCRYPTION_KEY=encryption-key-%ENVIRONMENT%:latest" --service-account=%SERVICE_ACCOUNT% --command="npm" --args="run,db:migrate" --max-retries=3 --parallelism=1 --task-count=1
+    echo.
+    echo Running database migrations...
+    gcloud run jobs create social-soloboss-migrate --image=gcr.io/%PROJECT_ID%/social-soloboss-backend:latest --region=%REGION% --set-env-vars="NODE_ENV=production" --set-env-vars="DATABASE_URL=%DB_CONNECTION%" --set-secrets="JWT_SECRET=jwt-secret-%ENVIRONMENT%:latest" --set-secrets="ENCRYPTION_KEY=encryption-key-%ENVIRONMENT%:latest" --service-account=%SERVICE_ACCOUNT% --command="npm" --args="run,db:migrate" --max-retries=3 --parallelism=1 --task-count=1
 
-gcloud run jobs execute social-soloboss-migrate --region=%REGION% --wait
+    gcloud run jobs execute social-soloboss-migrate --region=%REGION% --wait
+) else (
+    echo Skipping Cloud Run configuration (requires Terraform infrastructure)...
+    echo Getting service URLs...
+    for /f "delims=" %%i in ('gcloud run services describe social-soloboss-backend --region=%REGION% --format="value(status.url)"') do set BACKEND_URL=%%i
+    for /f "delims=" %%i in ('gcloud run services describe social-soloboss-frontend --region=%REGION% --format="value(status.url)"') do set FRONTEND_URL=%%i
+)
 
 echo.
 echo ========================================

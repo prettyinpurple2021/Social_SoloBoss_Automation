@@ -78,8 +78,8 @@ app.use('/api/settings', settingsRoutes);
 // Blogger integration routes (webhook rate limiting)
 app.use('/api/blogger', webhookRateLimit, bloggerRoutes);
 
-// SoloBoss integration routes (webhook rate limiting)
-app.use('/api/soloboss', webhookRateLimit, createSoloBossRoutes(db.getPool()));
+// SoloBoss integration routes (webhook rate limiting) - temporarily disabled
+// app.use('/api/soloboss', webhookRateLimit, createSoloBossRoutes(db.getPool()));
 
 // 404 handler (must be before error handler)
 app.use('*', notFoundHandler);

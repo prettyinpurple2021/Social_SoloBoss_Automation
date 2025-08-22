@@ -45,6 +45,9 @@ COPY --from=builder --chown=backend:nodejs /app/packages/shared/dist ./shared
 COPY --from=builder --chown=backend:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=backend:nodejs /app/packages/backend/package.json ./package.json
 
+# Create logs directory and set permissions
+RUN mkdir -p /app/logs && chown -R backend:nodejs /app/logs
+
 # Switch to non-root user
 USER backend
 

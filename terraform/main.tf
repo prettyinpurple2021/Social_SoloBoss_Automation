@@ -253,7 +253,7 @@ resource "google_cloud_scheduler_job" "post_processor" {
 
   http_target {
     http_method = "POST"
-    uri         = "https://social-soloboss-backend-${random_id.suffix.hex}-uc.a.run.app/api/scheduler/process"
+    uri         = "https://social-soloboss-backend-uc.a.run.app/api/scheduler/process"
     
     headers = {
       "Content-Type" = "application/json"

@@ -1,0 +1,21 @@
+# Simple Cloud Build configuration for testing
+steps:
+  # Build frontend Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'gcr.io/social-soloboss-ai-automation/social-soloboss-frontend:test'
+      - '-f'
+      - 'packages/frontend/Dockerfile.prod'
+      - '.'
+
+  # Push frontend image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/social-soloboss-ai-automation/social-soloboss-frontend:test']
+
+options:
+  machineType: 'E2_HIGHCPU_8'
+  logging: CLOUD_LOGGING_ONLY
+
+timeout: '600s'
