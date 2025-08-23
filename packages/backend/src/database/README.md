@@ -1,170 +1,193 @@
-# Database Implementation
+# Database
 
-This directory contains the database schema, models, and utilities for the Social Media Automation platform.
+This directory contains database-related files for the Social Media Automation Platform.
 
-## Structure
+## Overview
 
-```
-database/
-├── migrations/           # SQL migration files
-├── connection.ts        # Database connection utilities
-├── init.ts             # Database initialization script
-└── README.md           # This file
+The database system uses PostgreSQL with a comprehensive migration system, connection pooling, error handling, and development utilities.
 
-models/
-├── User.ts             # User model with CRUD operations
-├── PlatformConnection.ts # Social media platform connections
-├── Post.ts             # Post management
-├── PlatformPost.ts     # Platform-specific post data
-└── index.ts            # Model exports
+## Files
 
-types/
-└── database.ts         # TypeScript interfaces and enums
-```
+- `connection.ts` - Enhanced database connection management with retry logic and performance monitoring
+- `init.ts` - Database initialization and migration runner
+- `seed.ts` - Database seeding utility for development and testing
+- `validation.ts` - Database schema validation and health checking
+- `migrations/` - SQL migration files for schema changes
+- `seeds/` - Seed data files for different environments
 
 ## Database Schema
 
-### Tables
+### Core Tables
+- **users** - User accounts with authentication and profile information
+- **platform_connections** - OAuth connections to social media platforms
+- **posts** - Social media posts with content and scheduling information
+- **platform_posts** - Individual platform posts tracking publication status
+- **post_analytics** - Performance metrics for published posts
 
-1. **users** - User accounts and settings
-2. **platform_connections** - OAuth connections to social media platforms
-3. **posts** - Main post content and metadata
-4. **platform_posts** - Platform-specific post instances
+### Integration Tables
+- **integrations** - External service integrations and configurations
+- **content_templates** - Reusable content templates for post creation
+- **blogger_integrations** - Blogger-specific integration settings
+- **soloboss_integrations** - SoloBoss-specific integration settings
 
-### Key Features
-
-- **UUID Primary Keys**: All tables use UUID primary keys for better scalability
-- **Automatic Timestamps**: `created_at` and `updated_at` fields with triggers
-- **JSON Settings**: Flexible user settings stored as JSONB
-- **Referential Integrity**: Foreign key constraints with CASCADE deletes
-- **Indexes**: Optimized indexes for common query patterns
-- **Constraints**: Data validation at the database level
-
-## Models
-
-Each model provides static methods for CRUD operations:
-
-### UserModel
-- `create(input)` - Create new user
-- `findById(id)` - Find user by ID
-- `findByEmail(email)` - Find user by email
-- `update(id, input)` - Update user fields
-- `delete(id)` - Delete user
-- `list(limit, offset)` - List users with pagination
-- `updateSettings(id, settings)` - Update user settings
-
-### PlatformConnectionModel
-- `create(input)` - Create/update platform connection (upsert)
-- `findByUserAndPlatform(userId, platform)` - Find specific connection
-- `findByUserId(userId)` - Find all user connections
-- `findActiveByUserId(userId)` - Find active connections only
-- `findExpiringSoon(hours)` - Find tokens expiring soon
-- `update(id, input)` - Update connection
-- `deactivate(id)` - Deactivate connection
-- `delete(id)` - Delete connection
-
-### PostModel
-- `create(input)` - Create new post
-- `findById(id)` - Find post by ID
-- `findByUserId(userId)` - Find user's posts
-- `findByStatus(status)` - Find posts by status
-- `findScheduledPosts(beforeTime?)` - Find scheduled posts
-- `findBySource(source)` - Find posts by source
-- `update(id, input)` - Update post
-- `updateStatus(id, status)` - Update post status
-- `delete(id)` - Delete post
-- `getPostStats(userId)` - Get post statistics
-
-### PlatformPostModel
-- `create(input)` - Create platform post (upsert)
-- `findByPostId(postId)` - Find all platform posts for a post
-- `findByPostAndPlatform(postId, platform)` - Find specific platform post
-- `findByStatus(status)` - Find platform posts by status
-- `findFailedPosts(maxRetries)` - Find retryable failed posts
-- `update(id, input)` - Update platform post
-- `updateStatus(id, status, error?)` - Update status with optional error
-- `incrementRetryCount(id)` - Increment retry counter
-- `delete(id)` - Delete platform post
-- `getPlatformStats(platform)` - Get platform statistics
-
-## Connection Management
-
-The `DatabaseConnection` class provides:
-
-- **Connection Pooling**: Configurable pool size and timeouts
-- **Health Checks**: Database connectivity monitoring
-- **Migrations**: Automatic schema migration system
-- **Transactions**: Transaction support with rollback
-- **Error Handling**: Comprehensive error logging
-- **Singleton Pattern**: Single instance across the application
-
-### Configuration
-
-Environment variables:
-- `DB_HOST` - Database host (default: localhost)
-- `DB_PORT` - Database port (default: 5432)
-- `DB_NAME` - Database name
-- `DB_USER` - Database user
-- `DB_PASSWORD` - Database password
-- `DB_POOL_MAX` - Maximum pool connections (default: 20)
-- `DB_IDLE_TIMEOUT` - Idle timeout in ms (default: 30000)
-- `DB_CONNECTION_TIMEOUT` - Connection timeout in ms (default: 2000)
+### Security & Monitoring Tables
+- **user_sessions** - User authentication sessions with refresh tokens
+- **failed_login_attempts** - Failed login attempts for security monitoring
+- **rate_limits** - API rate limiting tracking
+- **audit_logs** - General audit log for all user actions
+- **security_events** - Security-specific events for monitoring
 
 ## Usage
 
-### Initialize Database
+### Database Management
 ```bash
+# Initialize database and run migrations
 npm run db:init
-```
 
-### Run Migrations
-```bash
+# Run migrations only
 npm run db:migrate
+
+# Validate database schema
+npm run db:validate
 ```
 
-### Example Usage
-```typescript
-import { UserModel } from './models';
-import { db } from './database';
-
-// Create a user
-const user = await UserModel.create({
-  email: 'user@example.com',
-  name: 'John Doe',
-  password_hash: 'hashed_password'
-});
-
-// Use transactions
-await db.transaction(async (client) => {
-  // Multiple operations in transaction
-  await client.query('INSERT INTO ...');
-  await client.query('UPDATE ...');
-});
-```
-
-## Testing
-
-The database implementation includes comprehensive unit tests that verify:
-
-- Model method signatures and functionality
-- Database schema structure
-- Migration file validity
-- TypeScript type definitions
-- Enum value correctness
-
-Run tests with:
+### Development Data
 ```bash
-npm test
+# Seed development data
+npm run db:seed:dev
+
+# Seed test data
+npm run db:seed:test
+
+# Reset database with fresh development data
+npm run db:reset
+
+# Reset database with fresh test data
+npm run db:reset:test
 ```
 
-## Migration System
+### Database Health
+```bash
+# Validate schema and check for issues
+npm run db:validate
+```
 
-Migrations are automatically applied in order based on filename. Each migration:
+## Environment Variables
 
-1. Creates tables with proper constraints
-2. Adds indexes for performance
-3. Sets up triggers for automatic timestamps
-4. Includes rollback-safe operations
+### Connection Settings
+- `DB_HOST` - Database host (default: localhost)
+- `DB_PORT` - Database port (default: 5432)
+- `DB_NAME` - Database name (default: social_media_automation)
+- `DB_USER` - Database user (default: postgres)
+- `DB_PASSWORD` - Database password (default: password)
 
-New migrations should follow the naming pattern:
-`XXX_description.sql` where XXX is a sequential number.
+### Connection Pool Settings
+- `DB_POOL_MAX` - Maximum pool connections (default: 20)
+- `DB_IDLE_TIMEOUT` - Idle timeout in ms (default: 30000)
+- `DB_CONNECTION_TIMEOUT` - Connection timeout in ms (default: 2000)
+- `DB_ACQUIRE_TIMEOUT` - Client acquisition timeout in ms (default: 60000)
+
+### Security Settings
+- `DB_SSL` - Enable SSL connection (default: false, true in production)
+- `NODE_ENV` - Environment mode (affects logging and SSL)
+
+## Features
+
+### Enhanced Connection Management
+- **Connection Pooling**: Optimized connection pool with configurable limits
+- **Retry Logic**: Automatic reconnection with exponential backoff
+- **Health Monitoring**: Continuous health checks and connection status tracking
+- **Performance Monitoring**: Query performance logging and slow query detection
+
+### Migration System
+- **Automatic Migration**: Runs pending migrations on startup
+- **Transaction Safety**: All migrations run within transactions
+- **Migration Tracking**: Tracks executed migrations to prevent duplicates
+- **Rollback Support**: Transaction-based rollback on migration failures
+
+### Development Tools
+- **Database Seeding**: Populate database with test data for development
+- **Schema Validation**: Validate database schema integrity and constraints
+- **Performance Testing**: Generate large datasets for performance testing
+- **Health Reports**: Comprehensive database health and performance reports
+
+### Error Handling
+- **Structured Errors**: Detailed error logging with context and metadata
+- **User-Friendly Messages**: Convert database errors to user-friendly messages
+- **Connection Recovery**: Automatic recovery from connection failures
+- **Transaction Management**: Proper transaction handling with rollback support
+
+## Migration Guidelines
+
+### Creating Migrations
+1. Create new migration file with sequential number: `018_description.sql`
+2. Use `IF NOT EXISTS` for CREATE statements
+3. Include proper indexes for performance
+4. Add comments for documentation
+5. Test migration with sample data
+
+### Migration Best Practices
+- Always use transactions for complex migrations
+- Create indexes concurrently in production
+- Add constraints after data validation
+- Include rollback procedures in comments
+- Test migrations on production-like data
+
+## Performance Optimization
+
+### Indexing Strategy
+- Primary keys on all tables (UUID)
+- Foreign key indexes for joins
+- Composite indexes for common query patterns
+- GIN indexes for JSONB and array columns
+- Partial indexes for filtered queries
+
+### Query Optimization
+- Connection pooling for concurrent requests
+- Query performance monitoring
+- Slow query detection and logging
+- Prepared statement caching
+- Connection reuse and management
+
+### Monitoring
+- Pool statistics tracking
+- Query performance metrics
+- Connection health monitoring
+- Database usage statistics
+- Index usage analysis
+
+## Security Features
+
+### Data Protection
+- Encrypted sensitive data (tokens, passwords)
+- Audit logging for all operations
+- Security event tracking
+- Failed login attempt monitoring
+- Rate limiting implementation
+
+### Access Control
+- Foreign key constraints for data integrity
+- Check constraints for data validation
+- Unique constraints for business rules
+- Soft deletes for data retention
+- Session management with refresh tokens
+
+## Troubleshooting
+
+### Common Issues
+1. **Connection Failures**: Check database server status and network connectivity
+2. **Migration Errors**: Review migration SQL and database permissions
+3. **Performance Issues**: Check query performance and index usage
+4. **Data Integrity**: Run schema validation to identify issues
+
+### Debug Commands
+```bash
+# Check database connection
+npm run db:validate
+
+# View pool statistics
+# (Available through health report API)
+
+# Check migration status
+# (Tracked in migrations table)
+```

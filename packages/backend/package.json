@@ -15,7 +15,14 @@
     "lint": "eslint src --ext .ts",
     "clean": "rm -rf dist",
     "db:init": "ts-node src/database/init.ts",
-    "db:migrate": "ts-node src/database/init.ts"
+    "db:migrate": "ts-node src/database/init.ts",
+    "db:seed": "ts-node src/database/seed.ts",
+    "db:seed:dev": "ts-node src/database/seed.ts development",
+    "db:seed:test": "ts-node src/database/seed.ts test",
+    "db:validate": "ts-node src/database/validation.ts",
+    "db:reset": "npm run db:init && npm run db:seed:dev",
+    "db:reset:test": "npm run db:init && npm run db:seed:test",
+    "db:test-schema": "ts-node src/database/test-schema.ts"
   },
   "dependencies": {
     "@sma/shared": "^1.0.0",
