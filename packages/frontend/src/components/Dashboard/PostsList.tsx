@@ -25,7 +25,8 @@ import {
     Schedule,
     CheckCircle,
     Error,
-    Pending
+    Pending,
+    AutoAwesome
 } from '@mui/icons-material';
 import { Post, PostStatus } from '@sma/shared/types/post';
 import { Platform } from '@sma/shared/types/platform';
@@ -196,12 +197,46 @@ export const PostsList: React.FC<PostsListProps> = ({
 
     if (displayPosts.length === 0) {
         return (
-            <Box sx={{ textAlign: 'center', py: 8 }}>
-                <Typography variant="h6" color="text.secondary" gutterBottom>
+            <Box sx={{ 
+                textAlign: 'center', 
+                py: 8,
+                background: 'rgba(255, 255, 255, 0.1)',
+                backdropFilter: 'blur(10px)',
+                borderRadius: '20px',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+                p: 4
+            }}>
+                <AutoAwesome sx={{ 
+                    fontSize: '4rem',
+                    mb: 2,
+                    background: 'linear-gradient(45deg, #f093fb, #f5576c)',
+                    backgroundClip: 'text',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent'
+                }} />
+                <Typography 
+                    variant="h4" 
+                    sx={{ 
+                        mb: 2,
+                        fontFamily: '"Kalnia Glaze", serif',
+                        background: 'linear-gradient(45deg, #667eea, #764ba2)',
+                        backgroundClip: 'text',
+                        WebkitBackgroundClip: 'text',
+                        WebkitTextFillColor: 'transparent',
+                        fontWeight: 500
+                    }}
+                >
                     No posts yet
                 </Typography>
-                <Typography variant="body2" color="text.secondary">
-                    Create your first post to get started with social media automation
+                <Typography 
+                    variant="h6" 
+                    sx={{ 
+                        color: 'rgba(255, 255, 255, 0.8)',
+                        fontFamily: '"Kalnia Glaze", serif',
+                        fontWeight: 500
+                    }}
+                >
+                    Create your first post to get started with social media automation ✨
                 </Typography>
             </Box>
         );
@@ -209,14 +244,43 @@ export const PostsList: React.FC<PostsListProps> = ({
 
     return (
         <Box>
-            <Typography variant="h5" gutterBottom>
+            <Typography 
+                variant="h3" 
+                gutterBottom
+                sx={{
+                    fontFamily: '"Kalnia Glaze", serif',
+                    background: 'linear-gradient(45deg, #4facfe, #00f2fe)',
+                    backgroundClip: 'text',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    fontWeight: 500,
+                    mb: 3
+                }}
+            >
                 Your Posts
             </Typography>
 
             <Grid container spacing={3}>
                 {displayPosts.map((post) => (
                     <Grid item xs={12} md={6} lg={4} key={post.id}>
-                        <Card elevation={2} sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                        <Card 
+                            elevation={2} 
+                            sx={{ 
+                                height: '100%', 
+                                display: 'flex', 
+                                flexDirection: 'column',
+                                background: 'rgba(255, 255, 255, 0.95)',
+                                backdropFilter: 'blur(10px)',
+                                borderRadius: '20px',
+                                border: '1px solid rgba(255, 255, 255, 0.2)',
+                                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
+                                transition: 'all 0.3s ease',
+                                '&:hover': {
+                                    transform: 'translateY(-4px)',
+                                    boxShadow: '0 16px 48px rgba(0, 0, 0, 0.15)',
+                                }
+                            }}
+                        >
                             <CardContent sx={{ flexGrow: 1 }}>
                                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
                                     <Chip
@@ -224,16 +288,35 @@ export const PostsList: React.FC<PostsListProps> = ({
                                         label={post.status.charAt(0).toUpperCase() + post.status.slice(1)}
                                         color={statusColors[post.status]}
                                         size="small"
+                                        sx={{
+                                            fontFamily: '"Kalnia Glaze", serif',
+                                            fontWeight: 500,
+                                            borderRadius: '15px'
+                                        }}
                                     />
                                     <IconButton
                                         size="small"
                                         onClick={(e) => handleMenuOpen(e, post)}
+                                        sx={{
+                                            background: 'linear-gradient(45deg, rgba(240, 147, 251, 0.1), rgba(79, 172, 254, 0.1))',
+                                            '&:hover': {
+                                                background: 'linear-gradient(45deg, rgba(240, 147, 251, 0.2), rgba(79, 172, 254, 0.2))',
+                                            }
+                                        }}
                                     >
                                         <MoreVert />
                                     </IconButton>
                                 </Box>
 
-                                <Typography variant="body1" sx={{ mb: 2, lineHeight: 1.4 }}>
+                                <Typography 
+                                    variant="body1" 
+                                    sx={{ 
+                                        mb: 2, 
+                                        lineHeight: 1.4,
+                                        fontFamily: '"Kalnia Glaze", serif',
+                                        fontSize: '1.1rem'
+                                    }}
+                                >
                                     {post.content.length > 150
                                         ? `${post.content.substring(0, 150)}...`
                                         : post.content
@@ -248,7 +331,19 @@ export const PostsList: React.FC<PostsListProps> = ({
                                                 label={hashtag}
                                                 size="small"
                                                 variant="outlined"
-                                                sx={{ mr: 0.5, mb: 0.5 }}
+                                                sx={{ 
+                                                    mr: 0.5, 
+                                                    mb: 0.5,
+                                                    fontFamily: '"Kalnia Glaze", serif',
+                                                    fontWeight: 500,
+                                                    borderRadius: '12px',
+                                                    border: '1px solid',
+                                                    borderImage: 'linear-gradient(45deg, #f093fb, #f5576c) 1',
+                                                    '&:hover': {
+                                                        background: 'linear-gradient(45deg, #f093fb, #f5576c)',
+                                                        color: 'white',
+                                                    }
+                                                }}
                                             />
                                         ))}
                                     </Box>
@@ -264,7 +359,13 @@ export const PostsList: React.FC<PostsListProps> = ({
                                                 width: 32,
                                                 height: 32,
                                                 bgcolor: platformColors[platform],
-                                                '& .MuiSvgIcon-root': { fontSize: 18 }
+                                                '& .MuiSvgIcon-root': { fontSize: 18 },
+                                                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+                                                transition: 'all 0.3s ease',
+                                                '&:hover': {
+                                                    transform: 'scale(1.1)',
+                                                    boxShadow: '0 6px 16px rgba(0, 0, 0, 0.2)',
+                                                }
                                             }}
                                         >
                                             {platformIcons[platform]}
@@ -274,18 +375,35 @@ export const PostsList: React.FC<PostsListProps> = ({
 
                                 <Box>
                                     {post.status === PostStatus.SCHEDULED && post.scheduledTime && (
-                                        <Typography variant="caption" color="text.secondary">
+                                        <Typography 
+                                            variant="caption" 
+                                            sx={{ 
+                                                color: 'text.secondary',
+                                                fontFamily: '"Kalnia Glaze", serif',
+                                                fontWeight: 500
+                                            }}
+                                        >
                                             Scheduled for {formatScheduledTime(post.scheduledTime)}
                                         </Typography>
                                     )}
                                     {post.status === PostStatus.PUBLISHED && (
-                                        <Typography variant="caption" color="text.secondary">
+                                        <Typography 
+                                            variant="caption" 
+                                            sx={{ 
+                                                color: 'text.secondary',
+                                                fontFamily: '"Kalnia Glaze", serif',
+                                                fontWeight: 500
+                                            }}
+                                        >
                                             Published {getRelativeTime(post.updatedAt)}
                                         </Typography>
                                     )}
                                     {post.status === PostStatus.FAILED && (
-                                        <Alert severity="error" sx={{ mt: 1 }}>
-                                            <Typography variant="caption">
+                                        <Alert severity="error" sx={{ mt: 1, borderRadius: '15px' }}>
+                                            <Typography 
+                                                variant="caption"
+                                                sx={{ fontFamily: '"Kalnia Glaze", serif', fontWeight: 500 }}
+                                            >
                                                 {post.platformPosts.find(p => p.error)?.error || 'Publishing failed'}
                                             </Typography>
                                         </Alert>
@@ -301,12 +419,25 @@ export const PostsList: React.FC<PostsListProps> = ({
                 anchorEl={anchorEl}
                 open={Boolean(anchorEl)}
                 onClose={handleMenuClose}
+                sx={{
+                    '& .MuiPaper-root': {
+                        background: 'rgba(255, 255, 255, 0.95)',
+                        backdropFilter: 'blur(10px)',
+                        borderRadius: '15px',
+                        border: '1px solid rgba(255, 255, 255, 0.2)',
+                        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
+                    }
+                }}
             >
-                <MenuItem onClick={handleEdit}>
+                <MenuItem onClick={handleEdit} sx={{ fontFamily: '"Kalnia Glaze", serif', fontWeight: 500 }}>
                     <Edit fontSize="small" sx={{ mr: 1 }} />
                     Edit
                 </MenuItem>
-                <MenuItem onClick={handleDelete} sx={{ color: 'error.main' }}>
+                <MenuItem onClick={handleDelete} sx={{ 
+                    color: 'error.main',
+                    fontFamily: '"Kalnia Glaze", serif',
+                    fontWeight: 500
+                }}>
                     <Delete fontSize="small" sx={{ mr: 1 }} />
                     Delete
                 </MenuItem>

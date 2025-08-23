@@ -194,7 +194,17 @@ export const PlatformConnections: React.FC<PlatformConnectionsProps> = ({
     return (
         <Box>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-                <Typography variant="h5">
+                <Typography 
+                    variant="h3"
+                    sx={{
+                        fontFamily: '"Kalnia Glaze", serif',
+                        background: 'linear-gradient(45deg, #4facfe, #00f2fe)',
+                        backgroundClip: 'text',
+                        WebkitBackgroundClip: 'text',
+                        WebkitTextFillColor: 'transparent',
+                        fontWeight: 500
+                    }}
+                >
                     Platform Connections
                 </Typography>
             </Box>

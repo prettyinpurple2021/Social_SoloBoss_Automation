@@ -28,7 +28,8 @@ import {
   Add,
   Delete,
   Schedule,
-  Send
+  Send,
+  AutoAwesome
 } from '@mui/icons-material';
 import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -148,11 +149,43 @@ export const PostForm: React.FC<PostFormProps> = ({
         maxWidth="md"
         fullWidth
         PaperProps={{
-          sx: { minHeight: '70vh' }
+          sx: { 
+            minHeight: '70vh',
+            background: 'rgba(255, 255, 255, 0.95)',
+            backdropFilter: 'blur(10px)',
+            borderRadius: '25px',
+            border: '1px solid rgba(255, 255, 255, 0.2)',
+            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.1)'
+          }
         }}
       >
-        <DialogTitle>
-          {initialData ? 'Edit Post' : 'Create New Post'}
+        <DialogTitle sx={{ 
+          textAlign: 'center',
+          pb: 1
+        }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 1 }}>
+            <AutoAwesome sx={{ 
+              mr: 1,
+              fontSize: '1.5rem',
+              background: 'linear-gradient(45deg, #f093fb, #f5576c)',
+              backgroundClip: 'text',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent'
+            }} />
+            <Typography 
+              variant="h4"
+              sx={{
+                fontFamily: '"Kalnia Glaze", serif',
+                background: 'linear-gradient(45deg, #f093fb, #f5576c)',
+                backgroundClip: 'text',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                fontWeight: 500
+              }}
+            >
+              {initialData ? 'Edit Post' : 'Create New Post'}
+            </Typography>
+          </Box>
         </DialogTitle>
         
         <DialogContent>
@@ -167,11 +200,37 @@ export const PostForm: React.FC<PostFormProps> = ({
               placeholder="What would you like to share?"
               fullWidth
               variant="outlined"
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: '15px',
+                  background: 'rgba(255, 255, 255, 0.8)',
+                  backdropFilter: 'blur(10px)',
+                  fontFamily: '"Kalnia Glaze", serif',
+                  fontSize: '1.1rem',
+                  '&:hover': {
+                    background: 'rgba(255, 255, 255, 0.9)',
+                  },
+                  '&.Mui-focused': {
+                    background: 'rgba(255, 255, 255, 0.95)',
+                  },
+                },
+                '& .MuiInputLabel-root': {
+                  fontFamily: '"Kalnia Glaze", serif',
+                  fontWeight: 500
+                }
+              }}
             />
 
             {/* Platform Selection */}
             <FormControl component="fieldset">
-              <FormLabel component="legend">Select Platforms</FormLabel>
+              <FormLabel component="legend" sx={{ 
+                fontFamily: '"Kalnia Glaze", serif',
+                fontSize: '1.2rem',
+                fontWeight: 500,
+                color: 'text.primary'
+              }}>
+                Select Platforms
+              </FormLabel>
               <FormGroup>
                 <Grid container spacing={2} sx={{ mt: 1 }}>
                   {Object.values(Platform).map((platform) => {
@@ -183,13 +242,23 @@ export const PostForm: React.FC<PostFormProps> = ({
                       <Grid item xs={12} sm={6} key={platform}>
                         <Box
                           sx={{
-                            border: 1,
-                            borderColor: isSelected ? 'primary.main' : 'divider',
-                            borderRadius: 1,
+                            border: 2,
+                            borderColor: isSelected ? 'primary.main' : 'rgba(255, 255, 255, 0.3)',
+                            borderRadius: '15px',
                             p: 2,
                             cursor: 'pointer',
-                            bgcolor: isSelected ? 'primary.50' : 'transparent',
-                            '&:hover': { bgcolor: isSelected ? 'primary.100' : 'action.hover' }
+                            background: isSelected 
+                              ? 'linear-gradient(45deg, rgba(240, 147, 251, 0.1), rgba(79, 172, 254, 0.1))'
+                              : 'rgba(255, 255, 255, 0.5)',
+                            backdropFilter: 'blur(10px)',
+                            transition: 'all 0.3s ease',
+                            '&:hover': { 
+                              background: isSelected 
+                                ? 'linear-gradient(45deg, rgba(240, 147, 251, 0.2), rgba(79, 172, 254, 0.2))'
+                                : 'rgba(255, 255, 255, 0.7)',
+                              transform: 'translateY(-2px)',
+                              boxShadow: '0 8px 24px rgba(0, 0, 0, 0.1)'
+                            }
                           }}
                           onClick={() => handlePlatformToggle(platform)}
                         >
@@ -199,21 +268,33 @@ export const PostForm: React.FC<PostFormProps> = ({
                                 checked={isSelected}
                                 onChange={() => handlePlatformToggle(platform)}
                                 color="primary"
+                                sx={{
+                                  '&.Mui-checked': {
+                                    color: 'primary.main',
+                                  }
+                                }}
                               />
                             }
                             label={
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                 <Avatar
                                   sx={{
-                                    width: 24,
-                                    height: 24,
+                                    width: 28,
+                                    height: 28,
                                     bgcolor: PLATFORM_COLORS[platform],
-                                    '& .MuiSvgIcon-root': { fontSize: 16 }
+                                    '& .MuiSvgIcon-root': { fontSize: 18 },
+                                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)'
                                   }}
                                 >
                                   {platformIcons[platform]}
                                 </Avatar>
-                                <Typography variant="body2">
+                                <Typography 
+                                  variant="body2"
+                                  sx={{ 
+                                    fontFamily: '"Kalnia Glaze", serif',
+                                    fontWeight: 500
+                                  }}
+                                >
                                   {PLATFORM_NAMES[platform]}
                                 </Typography>
                               </Box>
@@ -224,7 +305,12 @@ export const PostForm: React.FC<PostFormProps> = ({
                             <Typography 
                               variant="caption" 
                               color={isOverLimit ? 'error' : 'text.secondary'}
-                              sx={{ ml: 4, display: 'block' }}
+                              sx={{ 
+                                ml: 4, 
+                                display: 'block',
+                                fontFamily: '"Kalnia Glaze", serif',
+                                fontWeight: 500
+                              }}
                             >
                               {current}/{limit} characters
                             </Typography>
@@ -239,14 +325,26 @@ export const PostForm: React.FC<PostFormProps> = ({
 
             {/* Character Limit Warning */}
             {hasCharacterLimitWarning() && (
-              <Alert severity="warning">
+              <Alert severity="warning" sx={{ 
+                borderRadius: '15px',
+                fontFamily: '"Kalnia Glaze", serif',
+                fontWeight: 500
+              }}>
                 Some platforms are approaching or exceeding character limits. Consider shortening your content.
               </Alert>
             )}
 
             {/* Hashtags */}
             <Box>
-              <Typography variant="subtitle2" gutterBottom>
+              <Typography 
+                variant="h6" 
+                gutterBottom
+                sx={{ 
+                  fontFamily: '"Kalnia Glaze", serif',
+                  fontWeight: 500,
+                  color: 'text.primary'
+                }}
+              >
                 Hashtags
               </Typography>
               <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
@@ -258,6 +356,17 @@ export const PostForm: React.FC<PostFormProps> = ({
                     deleteIcon={<Delete />}
                     size="small"
                     variant="outlined"
+                    sx={{
+                      fontFamily: '"Kalnia Glaze", serif',
+                      fontWeight: 500,
+                      borderRadius: '12px',
+                      border: '1px solid',
+                      borderImage: 'linear-gradient(45deg, #f093fb, #f5576c) 1',
+                      '&:hover': {
+                        background: 'linear-gradient(45deg, #f093fb, #f5576c)',
+                        color: 'white',
+                      }
+                    }}
                   />
                 ))}
               </Box>
@@ -273,15 +382,39 @@ export const PostForm: React.FC<PostFormProps> = ({
                       handleAddHashtag();
                     }
                   }}
-                  sx={{ flexGrow: 1 }}
+                  sx={{ 
+                    flexGrow: 1,
+                    '& .MuiOutlinedInput-root': {
+                      borderRadius: '12px',
+                      background: 'rgba(255, 255, 255, 0.8)',
+                      backdropFilter: 'blur(10px)',
+                      fontFamily: '"Kalnia Glaze", serif',
+                      '&:hover': {
+                        background: 'rgba(255, 255, 255, 0.9)',
+                      },
+                      '&.Mui-focused': {
+                        background: 'rgba(255, 255, 255, 0.95)',
+                      },
+                    }
+                  }}
                 />
-                <IconButton onClick={handleAddHashtag} color="primary">
+                <IconButton 
+                  onClick={handleAddHashtag} 
+                  sx={{
+                    background: 'linear-gradient(45deg, #4facfe, #00f2fe)',
+                    color: 'white',
+                    '&:hover': {
+                      background: 'linear-gradient(45deg, #00f2fe, #4facfe)',
+                      transform: 'scale(1.1)',
+                    }
+                  }}
+                >
                   <Add />
                 </IconButton>
               </Box>
             </Box>
 
-            <Divider />
+            <Divider sx={{ borderColor: 'rgba(255, 255, 255, 0.2)' }} />
 
             {/* Scheduling */}
             <Box>
@@ -290,9 +423,22 @@ export const PostForm: React.FC<PostFormProps> = ({
                   <Checkbox
                     checked={isScheduled}
                     onChange={(e) => setIsScheduled(e.target.checked)}
+                    sx={{
+                      '&.Mui-checked': {
+                        color: 'primary.main',
+                      }
+                    }}
                   />
                 }
-                label="Schedule for later"
+                label={
+                  <Typography sx={{ 
+                    fontFamily: '"Kalnia Glaze", serif',
+                    fontWeight: 500,
+                    fontSize: '1.1rem'
+                  }}>
+                    Schedule for later
+                  </Typography>
+                }
               />
               
               {isScheduled && (
@@ -305,7 +451,25 @@ export const PostForm: React.FC<PostFormProps> = ({
                     slotProps={{
                       textField: {
                         fullWidth: true,
-                        variant: 'outlined'
+                        variant: 'outlined',
+                        sx: {
+                          '& .MuiOutlinedInput-root': {
+                            borderRadius: '15px',
+                            background: 'rgba(255, 255, 255, 0.8)',
+                            backdropFilter: 'blur(10px)',
+                            fontFamily: '"Kalnia Glaze", serif',
+                            '&:hover': {
+                              background: 'rgba(255, 255, 255, 0.9)',
+                            },
+                            '&.Mui-focused': {
+                              background: 'rgba(255, 255, 255, 0.95)',
+                            },
+                          },
+                          '& .MuiInputLabel-root': {
+                            fontFamily: '"Kalnia Glaze", serif',
+                            fontWeight: 500
+                          }
+                        }
                       }
                     }}
                   />
@@ -316,7 +480,14 @@ export const PostForm: React.FC<PostFormProps> = ({
         </DialogContent>
 
         <DialogActions sx={{ p: 3, pt: 0 }}>
-          <Button onClick={onClose}>
+          <Button 
+            onClick={onClose}
+            sx={{
+              fontFamily: '"Kalnia Glaze", serif',
+              fontWeight: 500,
+              fontSize: '1.1rem'
+            }}
+          >
             Cancel
           </Button>
           <Button
@@ -324,6 +495,19 @@ export const PostForm: React.FC<PostFormProps> = ({
             variant="contained"
             disabled={!isFormValid()}
             startIcon={isScheduled ? <Schedule /> : <Send />}
+            sx={{
+              fontFamily: '"Kalnia Glaze", serif',
+              fontWeight: 500,
+              fontSize: '1.1rem',
+              background: isScheduled 
+                ? 'linear-gradient(45deg, #667eea, #764ba2)'
+                : 'linear-gradient(45deg, #f093fb, #f5576c)',
+              '&:hover': {
+                background: isScheduled 
+                  ? 'linear-gradient(45deg, #764ba2, #667eea)'
+                  : 'linear-gradient(45deg, #f5576c, #4facfe)',
+              }
+            }}
           >
             {isScheduled ? 'Schedule Post' : 'Post Now'}
           </Button>
