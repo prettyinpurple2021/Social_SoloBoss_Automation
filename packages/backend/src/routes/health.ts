@@ -2,6 +2,9 @@ import { Router, Request, Response } from 'express';
 import { HealthCheckService } from '../services/HealthCheckService';
 import { RetryQueueService, retryQueueService } from '../services/RetryQueueService';
 import { NotificationService } from '../services/NotificationService';
+import { monitoringService } from '../services/MonitoringService';
+import { circuitBreakerService } from '../services/CircuitBreakerService';
+import { loggerService } from '../services/LoggerService';
 import { ErrorHandlerMiddleware } from '../middleware/errorHandler';
 import { authMiddleware } from '../middleware/auth';
 import { AppError, ErrorCode } from '../types/errors';
@@ -203,6 +206,223 @@ router.post('/notifications/errors/:notificationId/acknowledge', authMiddleware,
   res.json({
     success: true,
     message: 'Notification acknowledged',
+  });
+}));
+
+/**
+ * Comprehensive monitoring dashboard endpoint
+ * GET /health/monitoring
+ */
+router.get('/monitoring', authMiddleware, ErrorHandlerMiddleware.asyncHandler(async (req: Request, res: Response) => {
+  const dashboard = await monitoringService.getMonitoringDashboard();
+  res.json({
+    success: true,
+    data: dashboard,
+  });
+}));
+
+/**
+ * System metrics endpoint
+ * GET /health/metrics/system
+ */
+router.get('/metrics/system', authMiddleware, ErrorHandlerMiddleware.asyncHandler(async (req: Request, res: Response) => {
+  const systemMetrics = await monitoringService.getSystemMetrics();
+  res.json({
+    success: true,
+    data: systemMetrics,
+  });
+}));
+
+/**
+ * Application metrics endpoint
+ * GET /health/metrics/application
+ */
+router.get('/metrics/application', authMiddleware, ErrorHandlerMiddleware.asyncHandler(async (req: Request, res: Response) => {
+  const appMetrics = monitoringService.getApplicationMetrics();
+  res.json({
+    success: true,
+    data: appMetrics,
+  });
+}));
+
+/**
+ * Circuit breaker status endpoint
+ * GET /health/circuit-breakers
+ */
+router.get('/circuit-breakers', authMiddleware, ErrorHandlerMiddleware.asyncHandler(async (req: Request, res: Response) => {
+  const circuitBreakers = circuitBreakerService.getAllStats();
+  res.json({
+    success: true,
+    data: circuitBreakers,
+  });
+}));
+
+/**
+ * Reset circuit breaker endpoint
+ * POST /health/circuit-breakers/:name/reset
+ */
+router.post('/circuit-breakers/:name/reset', authMiddleware, ErrorHandlerMiddleware.asyncHandler(async (req: Request, res: Response) => {
+  const { name } = req.params;
+  const success = circuitBreakerService.reset(name);
+  
+  if (success) {
+    loggerService.info(`Circuit breaker manually reset: ${name}`, { 
+      action: 'manual_reset',
+      circuitBreaker: name,
+      userId: req.user?.id
+    });
+    res.json({ 
+      success: true, 
+      message: `Circuit breaker ${name} reset successfully` 
+    });
+  } else {
+    throw new AppError(
+      `Circuit breaker ${name} not found`,
+      ErrorCode.VALIDATION_ERROR,
+      404
+    );
+  }
+}));
+
+/**
+ * Reset all circuit breakers endpoint
+ * POST /health/circuit-breakers/reset-all
+ */
+router.post('/circuit-breakers/reset-all', authMiddleware, ErrorHandlerMiddleware.asyncHandler(async (req: Request, res: Response) => {
+  circuitBreakerService.resetAll();
+  loggerService.info('All circuit breakers manually reset', { 
+    action: 'manual_reset_all',
+    userId: req.user?.id
+  });
+  res.json({ 
+    success: true, 
+    message: 'All circuit breakers reset successfully' 
+  });
+}));
+
+/**
+ * Active alerts endpoint
+ * GET /health/alerts
+ */
+router.get('/alerts', authMiddleware, ErrorHandlerMiddleware.asyncHandler(async (req: Request, res: Response) => {
+  const alerts = monitoringService.getActiveAlerts();
+  res.json({
+    success: true,
+    data: alerts,
+  });
+}));
+
+/**
+ * Alert rules endpoint
+ * GET /health/alerts/rules
+ */
+router.get('/alerts/rules', authMiddleware, ErrorHandlerMiddleware.asyncHandler(async (req: Request, res: Response) => {
+  const rules = monitoringService.getAlertRules();
+  res.json({
+    success: true,
+    data: rules,
+  });
+}));
+
+/**
+ * Resolve alert endpoint
+ * POST /health/alerts/:alertId/resolve
+ */
+router.post('/alerts/:alertId/resolve', authMiddleware, ErrorHandlerMiddleware.asyncHandler(async (req: Request, res: Response) => {
+  const { alertId } = req.params;
+  const success = monitoringService.resolveAlert(alertId);
+  
+  if (success) {
+    res.json({ 
+      success: true, 
+      message: `Alert ${alertId} resolved successfully` 
+    });
+  } else {
+    throw new AppError(
+      `Alert ${alertId} not found or already resolved`,
+      ErrorCode.VALIDATION_ERROR,
+      404
+    );
+  }
+}));
+
+/**
+ * Specific metric endpoint
+ * GET /health/metrics/:metricName
+ */
+router.get('/metrics/:metricName', authMiddleware, ErrorHandlerMiddleware.asyncHandler(async (req: Request, res: Response) => {
+  const { metricName } = req.params;
+  const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
+  
+  const metrics = monitoringService.getMetrics(metricName, limit);
+  res.json({
+    success: true,
+    data: {
+      name: metricName,
+      data: metrics,
+      count: metrics.length
+    }
+  });
+}));
+
+/**
+ * Available metrics endpoint
+ * GET /health/metrics
+ */
+router.get('/metrics', authMiddleware, ErrorHandlerMiddleware.asyncHandler(async (req: Request, res: Response) => {
+  const metricNames = monitoringService.getMetricNames();
+  res.json({
+    success: true,
+    data: {
+      metrics: metricNames,
+      count: metricNames.length
+    }
+  });
+}));
+
+/**
+ * Logger statistics endpoint
+ * GET /health/logger/stats
+ */
+router.get('/logger/stats', authMiddleware, ErrorHandlerMiddleware.asyncHandler(async (req: Request, res: Response) => {
+  const stats = loggerService.getStats();
+  res.json({
+    success: true,
+    data: stats,
+  });
+}));
+
+/**
+ * Readiness probe (for Kubernetes)
+ * GET /health/ready
+ */
+router.get('/ready', ErrorHandlerMiddleware.asyncHandler(async (req: Request, res: Response) => {
+  const health = await HealthCheckService.performHealthCheck();
+  
+  if (health.status === 'unhealthy') {
+    res.status(503).json({ 
+      ready: false, 
+      reason: 'System unhealthy',
+      status: health.status
+    });
+  } else {
+    res.json({ 
+      ready: true, 
+      status: health.status 
+    });
+  }
+}));
+
+/**
+ * Liveness probe (for Kubernetes)
+ * GET /health/live
+ */
+router.get('/live', ErrorHandlerMiddleware.asyncHandler(async (req: Request, res: Response) => {
+  // Simple liveness check - if we can respond, we're alive
+  res.json({ 
+    alive: true, 
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
   });
 }));
 

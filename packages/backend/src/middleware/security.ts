@@ -130,7 +130,7 @@ export const sanitizeRequest = (req: Request, res: Response, next: NextFunction)
  */
 export const ipWhitelist = (allowedIPs: string[]) => {
   return (req: Request, res: Response, next: NextFunction): void => {
-    const clientIP = req.ip || req.connection.remoteAddress || '';
+    const clientIP = req.ip || req.socket.remoteAddress || '';
     const forwardedIP = req.headers['x-forwarded-for'] as string;
     
     // Get the actual client IP (considering proxies)
@@ -270,25 +270,297 @@ export const validateRequestMethod = (allowedMethods: string[]) => {
 };
 
 /**
- * CORS configuration for production
+ * Advanced input sanitization middleware
+ */
+export const advancedSanitization = (req: Request, res: Response, next: NextFunction): void => {
+  const sanitizeValue = (value: any): any => {
+    if (typeof value === 'string') {
+      // Remove null bytes
+      value = value.replace(/\0/g, '');
+      
+      // Remove potential XSS patterns
+      value = value.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+      value = value.replace(/javascript:/gi, '');
+      value = value.replace(/on\w+\s*=/gi, '');
+      
+      // Remove SQL injection patterns
+      value = value.replace(/(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|UNION|SCRIPT)\b)/gi, '');
+      
+      // Limit string length to prevent DoS
+      if (value.length > 10000) {
+        value = value.substring(0, 10000);
+      }
+      
+      return value;
+    }
+    
+    if (Array.isArray(value)) {
+      return value.map(sanitizeValue);
+    }
+    
+    if (value && typeof value === 'object') {
+      const sanitized: any = {};
+      for (const [key, val] of Object.entries(value)) {
+        // Sanitize key names too
+        const cleanKey = key.replace(/[^\w\-_]/g, '').substring(0, 100);
+        if (cleanKey) {
+          sanitized[cleanKey] = sanitizeValue(val);
+        }
+      }
+      return sanitized;
+    }
+    
+    return value;
+  };
+
+  // Sanitize all input
+  if (req.body) req.body = sanitizeValue(req.body);
+  if (req.query) req.query = sanitizeValue(req.query);
+  if (req.params) req.params = sanitizeValue(req.params);
+
+  next();
+};
+
+/**
+ * Content type validation middleware
+ */
+export const validateContentType = (allowedTypes: string[] = ['application/json', 'application/x-www-form-urlencoded', 'multipart/form-data']) => {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    // Skip for GET requests
+    if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') {
+      return next();
+    }
+
+    const contentType = req.headers['content-type'];
+    if (!contentType) {
+      loggerService.warn('Request without Content-Type header', {
+        method: req.method,
+        path: req.path,
+        ip: req.ip
+      });
+      
+      res.status(400).json({
+        success: false,
+        error: 'Content-Type header is required'
+      });
+      return;
+    }
+
+    const isAllowed = allowedTypes.some(type => contentType.includes(type));
+    if (!isAllowed) {
+      loggerService.warn('Invalid Content-Type', {
+        contentType,
+        allowedTypes,
+        method: req.method,
+        path: req.path,
+        ip: req.ip
+      });
+      
+      res.status(415).json({
+        success: false,
+        error: 'Unsupported Media Type'
+      });
+      return;
+    }
+
+    next();
+  };
+};
+
+/**
+ * Request origin validation
+ */
+export const validateOrigin = (req: Request, res: Response, next: NextFunction): void => {
+  const origin = req.headers.origin;
+  const referer = req.headers.referer;
+  
+  // Skip for same-origin requests
+  if (!origin && !referer) {
+    return next();
+  }
+
+  const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'];
+  
+  if (origin && !allowedOrigins.includes(origin)) {
+    loggerService.warn('Request from unauthorized origin', {
+      origin,
+      referer,
+      path: req.path,
+      ip: req.ip
+    });
+    
+    res.status(403).json({
+      success: false,
+      error: 'Origin not allowed'
+    });
+    return;
+  }
+
+  next();
+};
+
+/**
+ * Security headers middleware with enhanced configuration
+ */
+export const enhancedSecurityHeaders = helmet({
+  // Content Security Policy with strict settings
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      imgSrc: ["'self'", "data:", "https:", "blob:"],
+      scriptSrc: ["'self'", "'unsafe-eval'"], // unsafe-eval needed for some frameworks
+      connectSrc: [
+        "'self'", 
+        "https://api.facebook.com", 
+        "https://graph.instagram.com", 
+        "https://api.pinterest.com", 
+        "https://api.twitter.com",
+        "https://graph.facebook.com"
+      ],
+      frameSrc: ["'none'"],
+      objectSrc: ["'none'"],
+      mediaSrc: ["'self'", "https:"],
+      workerSrc: ["'self'"],
+      childSrc: ["'none'"],
+      formAction: ["'self'"],
+      frameAncestors: ["'none'"],
+      baseUri: ["'self'"],
+      manifestSrc: ["'self'"],
+      upgradeInsecureRequests: process.env.NODE_ENV === 'production' ? [] : null
+    },
+    reportOnly: process.env.NODE_ENV === 'development'
+  },
+  
+  // HTTP Strict Transport Security
+  hsts: {
+    maxAge: 31536000, // 1 year
+    includeSubDomains: true,
+    preload: true
+  },
+  
+  // Additional security headers
+  crossOriginEmbedderPolicy: { policy: 'require-corp' },
+  crossOriginOpenerPolicy: { policy: 'same-origin' },
+  crossOriginResourcePolicy: { policy: 'same-origin' },
+  
+  // Note: Permissions Policy would be configured here if supported by helmet version
+});
+
+/**
+ * CORS configuration for production with enhanced security
  */
 export const corsOptions = {
   origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
     const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'];
     
-    // Allow requests with no origin (mobile apps, etc.)
-    if (!origin) return callback(null, true);
+    // In production, be more strict about origins
+    if (process.env.NODE_ENV === 'production' && !origin) {
+      loggerService.warn('Request without origin in production', {
+        timestamp: new Date().toISOString()
+      });
+      return callback(new Error('Origin required in production'));
+    }
     
-    if (allowedOrigins.includes(origin)) {
+    // Allow requests with no origin in development (mobile apps, etc.)
+    if (!origin && process.env.NODE_ENV !== 'production') {
+      return callback(null, true);
+    }
+    
+    if (origin && allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
-      loggerService.warn('CORS origin not allowed', { origin });
+      loggerService.warn('CORS origin not allowed', { 
+        origin,
+        allowedOrigins: allowedOrigins.length 
+      });
       callback(new Error('Not allowed by CORS'));
     }
   },
   credentials: true,
   optionsSuccessStatus: 200,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
-  exposedHeaders: ['X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset']
+  allowedHeaders: [
+    'Content-Type', 
+    'Authorization', 
+    'X-Requested-With', 
+    'Accept', 
+    'Origin',
+    'X-CSRF-Token',
+    'X-API-Key'
+  ],
+  exposedHeaders: [
+    'X-RateLimit-Limit', 
+    'X-RateLimit-Remaining', 
+    'X-RateLimit-Reset',
+    'X-CSRF-Token'
+  ],
+  maxAge: 86400 // 24 hours
+};
+
+/**
+ * API key validation middleware
+ */
+export const validateAPIKey = (req: Request, res: Response, next: NextFunction): void => {
+  const apiKey = req.headers['x-api-key'] as string;
+  
+  if (!apiKey) {
+    return next(); // API key is optional, let other auth methods handle it
+  }
+
+  // Validate API key format
+  if (!apiKey.startsWith('sma_') || apiKey.length < 20) {
+    loggerService.warn('Invalid API key format', {
+      keyPrefix: apiKey.substring(0, 10),
+      ip: req.ip,
+      path: req.path
+    });
+    
+    res.status(401).json({
+      success: false,
+      error: 'Invalid API key format'
+    });
+    return;
+  }
+
+  // In a real implementation, you would validate against stored API keys
+  // For now, we'll just log and continue
+  loggerService.info('API key authentication attempted', {
+    keyPrefix: apiKey.substring(0, 10),
+    ip: req.ip,
+    path: req.path
+  });
+
+  next();
+};
+
+/**
+ * Request timeout middleware
+ */
+export const requestTimeout = (timeoutMs: number = 30000) => {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    const timeout = setTimeout(() => {
+      if (!res.headersSent) {
+        loggerService.warn('Request timeout', {
+          method: req.method,
+          path: req.path,
+          ip: req.ip,
+          timeout: timeoutMs
+        });
+        
+        res.status(408).json({
+          success: false,
+          error: 'Request timeout'
+        });
+      }
+    }, timeoutMs);
+
+    // Clear timeout when response is sent
+    res.on('finish', () => {
+      clearTimeout(timeout);
+    });
+
+    next();
+  };
 };

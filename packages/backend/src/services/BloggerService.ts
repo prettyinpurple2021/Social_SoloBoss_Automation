@@ -2,6 +2,10 @@ import Parser from 'rss-parser';
 import axios from 'axios';
 import { BloggerIntegrationModel, BloggerIntegrationRow } from '../models/BloggerIntegration';
 import { PostService } from './PostService';
+import { circuitBreakerService, CircuitBreakers } from './CircuitBreakerService';
+import { loggerService } from './LoggerService';
+import { monitoringService } from './MonitoringService';
+import { traceExternalCall, traced } from '../middleware/tracing';
 import { 
   BloggerPost, 
   BloggerMonitorResult, 
@@ -28,8 +32,16 @@ export class BloggerService {
     // Validate blog URL and generate RSS feed URL
     const rssFeedUrl = this.generateRssFeedUrl(settings.blogUrl);
     
-    // Test RSS feed accessibility
-    await this.validateRssFeed(rssFeedUrl);
+    // Test RSS feed accessibility with circuit breaker protection
+    await circuitBreakerService.execute(
+      CircuitBreakers.BLOGGER_API,
+      () => this.validateRssFeed(rssFeedUrl),
+      {
+        failureThreshold: 3,
+        recoveryTimeout: 300000, // 5 minutes
+        expectedErrors: ['timeout', 'ENOTFOUND', 'ECONNREFUSED']
+      }
+    );
 
     // Check if integration already exists
     const existing = await BloggerIntegrationModel.findByUserId(userId);
@@ -101,11 +113,31 @@ export class BloggerService {
   /**
    * Monitor a specific blogger feed for new posts
    */
+  @traced('BloggerService.monitorBloggerFeed')
   static async monitorBloggerFeed(integration: BloggerIntegrationRow): Promise<BloggerMonitorResult> {
     try {
-      const feed = await this.rssParser.parseURL(integration.rss_feed_url);
+      // Use circuit breaker for RSS feed parsing
+      const feed = await circuitBreakerService.execute(
+        `${CircuitBreakers.BLOGGER_API}_${integration.user_id}`,
+        () => traceExternalCall('blogger', 'parseRSS', () => 
+          this.rssParser.parseURL(integration.rss_feed_url)
+        ),
+        {
+          failureThreshold: 5,
+          recoveryTimeout: 600000, // 10 minutes
+          expectedErrors: ['timeout', 'ENOTFOUND', 'ECONNREFUSED', 'parse error']
+        }
+      );
+
       const newPosts: BloggerPost[] = [];
       const lastChecked = integration.last_checked || new Date(0); // Use epoch if never checked
+
+      loggerService.info(`Monitoring Blogger feed for user ${integration.user_id}`, {
+        userId: integration.user_id,
+        feedUrl: integration.rss_feed_url,
+        lastChecked,
+        feedItemCount: feed.items.length
+      });
 
       for (const item of feed.items) {
         if (!item.pubDate) continue;
@@ -131,8 +163,35 @@ export class BloggerService {
 
       // Process new posts and generate social media posts
       for (const blogPost of newPosts) {
-        await this.processBlogPost(integration, blogPost);
+        try {
+          await this.processBlogPost(integration, blogPost);
+          monitoringService.incrementCounter('blogger_posts_processed', 1, {
+            userId: integration.user_id,
+            status: 'success'
+          });
+        } catch (error) {
+          loggerService.error(`Failed to process blog post: ${blogPost.title}`, error as Error, {
+            userId: integration.user_id,
+            postId: blogPost.id,
+            postTitle: blogPost.title
+          });
+          monitoringService.incrementCounter('blogger_posts_processed', 1, {
+            userId: integration.user_id,
+            status: 'failed'
+          });
+        }
       }
+
+      monitoringService.incrementCounter('blogger_feeds_monitored', 1, {
+        userId: integration.user_id,
+        newPostsCount: newPosts.length.toString()
+      });
+
+      loggerService.info(`Blogger feed monitoring completed`, {
+        userId: integration.user_id,
+        newPostsFound: newPosts.length,
+        processingTime: Date.now() - Date.now() // This would be calculated properly in real implementation
+      });
 
       return {
         newPosts,

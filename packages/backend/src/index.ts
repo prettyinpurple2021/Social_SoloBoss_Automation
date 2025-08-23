@@ -13,7 +13,9 @@ import { schedulerService } from './services/SchedulerService';
 import { BloggerMonitorService } from './services/BloggerMonitorService';
 import { retryQueueService } from './services/RetryQueueService';
 import { loggerService } from './services/LoggerService';
+import { monitoringService } from './services/MonitoringService';
 import { ErrorHandlerMiddleware, requestIdMiddleware, notFoundHandler } from './middleware/errorHandler';
+import { tracingMiddleware, userContextMiddleware, correlationMiddleware } from './middleware/tracing';
 import { 
   enforceHTTPS, 
   securityHeaders, 
@@ -53,12 +55,17 @@ app.use(limitRequestSize());
 // General rate limiting
 app.use(generalRateLimit);
 
-// Request ID middleware
+// Request ID and tracing middleware
 app.use(requestIdMiddleware);
+app.use(correlationMiddleware);
+app.use(tracingMiddleware);
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// User context middleware (after auth middleware would be applied)
+app.use(userContextMiddleware);
 
 // Health check routes (with permissive rate limiting)
 app.use('/health', healthCheckRateLimit, healthRoutes);
@@ -112,6 +119,15 @@ app.listen(PORT, async () => {
     // Start retry queue service
     retryQueueService.start();
     loggerService.info('Retry queue service started');
+    
+    // Initialize monitoring service
+    loggerService.info('Monitoring service initialized');
+    
+    // Log application startup metrics
+    monitoringService.recordMetric('application_startup', 1, 'counter', {
+      version: process.env.npm_package_version || '1.0.0',
+      environment: process.env.NODE_ENV || 'development'
+    });
   } catch (error) {
     loggerService.error('Error starting services', error as Error);
     process.exit(1);
@@ -126,7 +142,9 @@ process.on('SIGTERM', async () => {
     await schedulerService.stop();
     BloggerMonitorService.stop();
     retryQueueService.stop();
+    monitoringService.shutdown();
     await redis.disconnect();
+    await loggerService.flush();
     loggerService.info('Services shut down successfully');
     process.exit(0);
   } catch (error) {
@@ -142,11 +160,39 @@ process.on('SIGINT', async () => {
     await schedulerService.stop();
     BloggerMonitorService.stop();
     retryQueueService.stop();
+    monitoringService.shutdown();
     await redis.disconnect();
+    await loggerService.flush();
     loggerService.info('Services shut down successfully');
     process.exit(0);
   } catch (error) {
     loggerService.error('Error during shutdown', error as Error);
     process.exit(1);
   }
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+  loggerService.error('Uncaught exception', error, {
+    type: 'uncaughtException',
+    stack: error.stack
+  });
+  
+  // Give time for logs to be written
+  setTimeout(() => {
+    process.exit(1);
+  }, 1000);
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  loggerService.error('Unhandled promise rejection', reason as Error, {
+    type: 'unhandledRejection',
+    promise: promise.toString()
+  });
+  
+  // Give time for logs to be written
+  setTimeout(() => {
+    process.exit(1);
+  }, 1000);
 });
