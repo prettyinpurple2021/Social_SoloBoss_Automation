@@ -7,6 +7,7 @@ import postsRoutes from './routes/posts';
 import bloggerRoutes from './routes/blogger';
 import settingsRoutes from './routes/settings';
 import healthRoutes from './routes/health';
+import securityRoutes from './routes/security';
 import { createSoloBossRoutes } from './routes/soloboss';
 import { TokenRefreshService } from './services/TokenRefreshService';
 import { schedulerService } from './services/SchedulerService';
@@ -22,7 +23,11 @@ import {
   sanitizeRequest, 
   validateUserAgent,
   limitRequestSize,
-  corsOptions
+  corsOptions,
+  productionSecurityHardening,
+  productionInputValidation,
+  securityMonitoring,
+  requestTimeout
 } from './middleware/security';
 import { 
   generalRateLimit, 
@@ -30,10 +35,14 @@ import {
   oauthRateLimit,
   postCreationRateLimit,
   healthCheckRateLimit,
-  webhookRateLimit
+  webhookRateLimit,
+  strictRateLimit,
+  AdaptiveRateLimit
 } from './middleware/rateLimiting';
 import { redis } from './database/redis';
 import { db } from './database/connection';
+import { csrfProtection } from './middleware/csrf';
+import { inputValidation, strictInputValidation } from './middleware/inputValidation';
 
 // Load environment variables
 dotenv.config();
@@ -44,13 +53,17 @@ const app = express();
 export { app };
 const PORT = process.env.PORT || 3001;
 
-// Security middleware
+// Security middleware - order is important
 app.use(enforceHTTPS);
+app.use(productionSecurityHardening);
 app.use(securityHeaders);
 app.use(cors(corsOptions));
+app.use(requestTimeout(30000)); // 30 second timeout
 app.use(validateUserAgent);
+app.use(productionInputValidation);
 app.use(sanitizeRequest);
 app.use(limitRequestSize());
+app.use(securityMonitoring);
 
 // General rate limiting
 app.use(generalRateLimit);
@@ -64,11 +77,18 @@ app.use(tracingMiddleware);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Input validation and CSRF protection
+app.use(inputValidation);
+app.use(csrfProtection);
+
 // User context middleware (after auth middleware would be applied)
 app.use(userContextMiddleware);
 
 // Health check routes (with permissive rate limiting)
 app.use('/health', healthCheckRateLimit, healthRoutes);
+
+// Security routes (for CSRF tokens, etc.)
+app.use('/api/security', generalRateLimit, securityRoutes);
 
 // Authentication routes (with strict rate limiting)
 app.use('/api/auth', authRateLimit, authRoutes);

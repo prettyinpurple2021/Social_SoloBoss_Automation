@@ -262,3 +262,184 @@ export const healthCheckRateLimit = rateLimit({
   legacyHeaders: false,
   store: new RedisStore('health:') as any
 });
+
+/**
+ * Adaptive rate limiting based on user behavior
+ */
+export class AdaptiveRateLimit {
+  private static instance: AdaptiveRateLimit;
+  private suspiciousIPs: Set<string> = new Set();
+  private trustedUsers: Set<string> = new Set();
+
+  static getInstance(): AdaptiveRateLimit {
+    if (!AdaptiveRateLimit.instance) {
+      AdaptiveRateLimit.instance = new AdaptiveRateLimit();
+    }
+    return AdaptiveRateLimit.instance;
+  }
+
+  /**
+   * Mark IP as suspicious
+   */
+  markSuspicious(ip: string): void {
+    this.suspiciousIPs.add(ip);
+    // Remove after 1 hour
+    setTimeout(() => {
+      this.suspiciousIPs.delete(ip);
+    }, 60 * 60 * 1000);
+  }
+
+  /**
+   * Mark user as trusted
+   */
+  markTrusted(userId: string): void {
+    this.trustedUsers.add(userId);
+  }
+
+  /**
+   * Get adaptive rate limit based on user/IP reputation
+   */
+  getAdaptiveLimit(req: Request, baseLimit: number): number {
+    const ip = req.ip || req.connection.remoteAddress || 'unknown';
+    const userId = req.user?.id;
+
+    // Reduce limit for suspicious IPs
+    if (this.suspiciousIPs.has(ip)) {
+      return Math.floor(baseLimit * 0.1); // 10% of normal limit
+    }
+
+    // Increase limit for trusted users
+    if (userId && this.trustedUsers.has(userId)) {
+      return Math.floor(baseLimit * 2); // 200% of normal limit
+    }
+
+    return baseLimit;
+  }
+
+  /**
+   * Create adaptive rate limiter
+   */
+  createAdaptiveRateLimit(options: {
+    windowMs: number;
+    baseMax: number;
+    keyGenerator?: (req: Request) => string;
+    storePrefix: string;
+  }) {
+    return rateLimit({
+      windowMs: options.windowMs,
+      max: (req: Request) => {
+        return this.getAdaptiveLimit(req, options.baseMax);
+      },
+      keyGenerator: options.keyGenerator || keyGenerator,
+      handler: (req: Request, res: Response) => {
+        const ip = req.ip || req.connection.remoteAddress || 'unknown';
+        
+        // Mark IP as suspicious after rate limit hit
+        this.markSuspicious(ip);
+        
+        loggerService.warn('Adaptive rate limit exceeded', {
+          ip,
+          userId: req.user?.id,
+          path: req.path,
+          method: req.method,
+          userAgent: req.get('User-Agent')
+        });
+
+        res.status(429).json({
+          success: false,
+          error: 'Rate limit exceeded. Your request frequency has been restricted.',
+          retryAfter: res.get('Retry-After')
+        });
+      },
+      standardHeaders: true,
+      legacyHeaders: false,
+      store: new RedisStore(options.storePrefix) as any
+    });
+  }
+}
+
+/**
+ * Strict rate limiting for sensitive endpoints
+ */
+export const strictRateLimit = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 5, // Very restrictive
+  keyGenerator,
+  handler: (req: Request, res: Response) => {
+    const ip = req.ip || req.connection.remoteAddress || 'unknown';
+    
+    loggerService.error('Strict rate limit exceeded', {
+      ip,
+      userId: req.user?.id,
+      path: req.path,
+      method: req.method,
+      userAgent: req.get('User-Agent')
+    });
+
+    // Mark IP as suspicious
+    AdaptiveRateLimit.getInstance().markSuspicious(ip);
+
+    res.status(429).json({
+      success: false,
+      error: 'Rate limit exceeded for sensitive operation. Please contact support if you believe this is an error.',
+      retryAfter: '3600'
+    });
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: new RedisStore('strict:') as any
+});
+
+/**
+ * Progressive rate limiting that increases restrictions on repeated violations
+ */
+export const progressiveRateLimit = (baseLimit: number, windowMs: number, storePrefix: string) => {
+  return rateLimit({
+    windowMs,
+    max: async (req: Request) => {
+      const key = keyGenerator(req);
+      const violationKey = `violations:${key}`;
+      
+      try {
+        const client = redis.getClient();
+        const violations = await client.get(violationKey);
+        const violationCount = violations ? parseInt(violations, 10) : 0;
+        
+        // Reduce limit based on violation history
+        const multiplier = Math.max(0.1, 1 - (violationCount * 0.2));
+        return Math.floor(baseLimit * multiplier);
+      } catch (error) {
+        loggerService.error('Error getting violation count', error as Error);
+        return baseLimit;
+      }
+    },
+    handler: async (req: Request, res: Response) => {
+      const key = keyGenerator(req);
+      const violationKey = `violations:${key}`;
+      
+      try {
+        const client = redis.getClient();
+        await client.incr(violationKey);
+        await client.expire(violationKey, 24 * 60 * 60); // 24 hours
+      } catch (error) {
+        loggerService.error('Error recording rate limit violation', error as Error);
+      }
+
+      loggerService.warn('Progressive rate limit exceeded', {
+        key,
+        path: req.path,
+        method: req.method,
+        ip: req.ip
+      });
+
+      res.status(429).json({
+        success: false,
+        error: 'Rate limit exceeded. Continued violations will result in further restrictions.',
+        retryAfter: res.get('Retry-After')
+      });
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+    store: new RedisStore(storePrefix) as any
+  });
+};

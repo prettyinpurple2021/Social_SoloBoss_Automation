@@ -49,16 +49,71 @@ export class EncryptionService {
     try {
       // Verify the new key exists and is valid
       this.getEncryptionKey(newKeyId);
+      const oldKeyId = this.currentKeyId;
       this.currentKeyId = newKeyId;
       
       loggerService.info('Encryption key rotated', { 
+        oldKeyId,
         newKeyId,
         timestamp: new Date().toISOString()
       });
+
+      // Schedule re-encryption of existing data
+      this.scheduleReEncryption(oldKeyId, newKeyId);
     } catch (error) {
       loggerService.error('Failed to rotate encryption key', error as Error, { newKeyId });
       throw error;
     }
+  }
+
+  /**
+   * Schedule re-encryption of existing data (placeholder for background job)
+   */
+  private static scheduleReEncryption(oldKeyId: string, newKeyId: string): void {
+    // In a real implementation, this would schedule a background job
+    // to re-encrypt sensitive data with the new key
+    loggerService.info('Re-encryption scheduled', {
+      oldKeyId,
+      newKeyId,
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  /**
+   * Re-encrypt data with new key
+   */
+  static reEncryptData(encryptedData: string, newKeyId?: string): string {
+    try {
+      // Decrypt with old key
+      const decryptedData = this.decrypt(encryptedData);
+      
+      // Encrypt with new key
+      return this.encrypt(decryptedData, newKeyId);
+    } catch (error) {
+      loggerService.error('Failed to re-encrypt data', error as Error, { newKeyId });
+      throw error;
+    }
+  }
+
+  /**
+   * Batch re-encrypt multiple data items
+   */
+  static async batchReEncrypt(encryptedItems: string[], newKeyId?: string): Promise<string[]> {
+    const results: string[] = [];
+    
+    for (const item of encryptedItems) {
+      try {
+        results.push(this.reEncryptData(item, newKeyId));
+      } catch (error) {
+        loggerService.error('Failed to re-encrypt item in batch', error as Error, { 
+          itemIndex: results.length,
+          newKeyId 
+        });
+        throw error;
+      }
+    }
+    
+    return results;
   }
 
   /**

@@ -134,7 +134,7 @@ export class CSRFProtection {
   }
 
   /**
-   * CSRF protection middleware
+   * CSRF protection middleware with enhanced security
    */
   middleware() {
     return (req: Request, res: Response, next: NextFunction): void => {
@@ -154,7 +154,9 @@ export class CSRFProtection {
             method: req.method,
             path: req.path,
             ip: req.ip,
-            userAgent: req.headers['user-agent']
+            userAgent: req.headers['user-agent'],
+            referer: req.headers.referer,
+            origin: req.headers.origin
           });
 
           monitoringService.incrementCounter('csrf_violations_total', 1, {
@@ -162,6 +164,9 @@ export class CSRFProtection {
             method: req.method,
             path: req.path
           });
+
+          // Log security event for missing CSRF token
+          this.logCSRFViolation(req, 'missing_token', 'CSRF token is required');
 
           const error = new AppError(
             'CSRF token is required',
@@ -185,6 +190,8 @@ export class CSRFProtection {
             path: req.path,
             ip: req.ip,
             userAgent: req.headers['user-agent'],
+            referer: req.headers.referer,
+            origin: req.headers.origin,
             token: token.substring(0, 10) + '...' // Log partial token for debugging
           });
 
@@ -193,6 +200,9 @@ export class CSRFProtection {
             method: req.method,
             path: req.path
           });
+
+          // Log security event for invalid CSRF token
+          this.logCSRFViolation(req, 'invalid_token', 'Invalid CSRF token provided');
 
           const error = new AppError(
             'Invalid CSRF token',
@@ -209,6 +219,52 @@ export class CSRFProtection {
 
           return next(error);
         }
+
+        // Additional validation: check origin/referer for state-changing requests
+        if (process.env.NODE_ENV === 'production') {
+          const origin = req.headers.origin;
+          const referer = req.headers.referer;
+          const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [];
+
+          if (!origin && !referer) {
+            loggerService.warn('State-changing request without origin or referer', {
+              method: req.method,
+              path: req.path,
+              ip: req.ip
+            });
+
+            this.logCSRFViolation(req, 'missing_origin', 'No origin or referer header');
+
+            const error = new AppError(
+              'Origin verification failed',
+              ErrorCode.VALIDATION_ERROR,
+              403,
+              ErrorSeverity.MEDIUM
+            );
+
+            return next(error);
+          }
+
+          if (origin && !allowedOrigins.includes(origin)) {
+            loggerService.warn('State-changing request from unauthorized origin', {
+              method: req.method,
+              path: req.path,
+              ip: req.ip,
+              origin
+            });
+
+            this.logCSRFViolation(req, 'unauthorized_origin', `Unauthorized origin: ${origin}`);
+
+            const error = new AppError(
+              'Origin not allowed',
+              ErrorCode.VALIDATION_ERROR,
+              403,
+              ErrorSeverity.MEDIUM
+            );
+
+            return next(error);
+          }
+        }
       }
 
       // Generate new token for response if needed
@@ -216,12 +272,14 @@ export class CSRFProtection {
       if (!csrfToken || !this.validateToken(csrfToken)) {
         csrfToken = this.generateToken();
         
-        // Set CSRF token cookie
+        // Set CSRF token cookie with enhanced security
         res.cookie(this.options.cookieName, csrfToken, {
           httpOnly: this.options.httpOnly,
           secure: this.options.secure,
           sameSite: this.options.sameSite,
-          maxAge: this.options.maxAge
+          maxAge: this.options.maxAge,
+          path: '/',
+          domain: process.env.NODE_ENV === 'production' ? process.env.COOKIE_DOMAIN : undefined
         });
       }
 
@@ -233,6 +291,24 @@ export class CSRFProtection {
 
       next();
     };
+  }
+
+  /**
+   * Log CSRF violation for security monitoring
+   */
+  private logCSRFViolation(req: Request, violationType: string, description: string): void {
+    // This would integrate with the audit service when available
+    loggerService.security('CSRF violation detected', {
+      type: violationType,
+      description,
+      method: req.method,
+      path: req.path,
+      ip: req.ip,
+      userAgent: req.headers['user-agent'],
+      referer: req.headers.referer,
+      origin: req.headers.origin,
+      timestamp: new Date().toISOString()
+    });
   }
 
   /**

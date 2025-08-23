@@ -1,5 +1,6 @@
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import { UserModel } from '../models/User';
 import { UserRow, CreateUserInput, UserSettings } from '../types/database';
 import { SettingsService } from './SettingsService';
@@ -7,6 +8,7 @@ import { securityService } from './SecurityService';
 import { loggerService } from './LoggerService';
 import { monitoringService } from './MonitoringService';
 import { EncryptionService } from './EncryptionService';
+import { auditService } from './AuditService';
 import { db } from '../database/connection';
 import { AppError, ErrorCode, ErrorSeverity } from '../types/errors';
 
@@ -197,13 +199,14 @@ export class AuthService {
   }
 
   /**
-   * Refresh access token using refresh token
+   * Refresh access token using refresh token with rotation
    */
   static async refreshAccessToken(refreshToken: string, ipAddress: string, userAgent: string): Promise<TokenPair | null> {
     try {
       // Verify refresh token
       const payload = this.verifyToken(refreshToken, 'refresh');
       if (!payload) {
+        loggerService.warn('Invalid refresh token provided', { ipAddress });
         return null;
       }
 
@@ -212,21 +215,40 @@ export class AuthService {
       if (!session || !session.isActive) {
         loggerService.warn('Invalid or inactive session for token refresh', {
           sessionId: payload.sessionId,
-          userId: payload.userId
+          userId: payload.userId,
+          ipAddress
         });
         return null;
       }
 
-      // Verify refresh token matches stored token
-      if (session.refreshToken !== refreshToken) {
-        loggerService.warn('Refresh token mismatch - possible token theft', {
+      // Verify refresh token matches stored token (constant-time comparison)
+      const storedTokenBuffer = Buffer.from(session.refreshToken, 'utf8');
+      const providedTokenBuffer = Buffer.from(refreshToken, 'utf8');
+      
+      if (storedTokenBuffer.length !== providedTokenBuffer.length || 
+          !crypto.timingSafeEqual(storedTokenBuffer, providedTokenBuffer)) {
+        loggerService.error('Refresh token mismatch - possible token theft', {
           sessionId: payload.sessionId,
           userId: payload.userId,
-          ipAddress
+          ipAddress,
+          userAgent
         });
         
         // Invalidate all sessions for this user as a security measure
         await this.invalidateAllUserSessions(payload.userId);
+        
+        // Log security incident
+        await auditService.logSecurityEvent(
+          'suspicious_activity',
+          'Refresh token mismatch detected - possible token theft',
+          payload.userId,
+          ipAddress,
+          {
+            sessionId: payload.sessionId,
+            userAgent,
+            reason: 'refresh_token_mismatch'
+          }
+        );
         
         throw new AppError(
           'Invalid refresh token',
@@ -238,21 +260,68 @@ export class AuthService {
         );
       }
 
+      // Check for suspicious activity (multiple refresh attempts from different IPs)
+      const recentRefreshes = await db.query(`
+        SELECT COUNT(*) as count, COUNT(DISTINCT ip_address) as ip_count
+        FROM audit_logs
+        WHERE user_id = $1 
+        AND action = 'token_refresh'
+        AND created_at > NOW() - INTERVAL '1 hour'
+      `, [payload.userId]);
+
+      const refreshCount = parseInt(recentRefreshes.rows[0]?.count || '0');
+      const ipCount = parseInt(recentRefreshes.rows[0]?.ip_count || '0');
+
+      if (refreshCount > 10 || ipCount > 3) {
+        loggerService.warn('Suspicious token refresh activity detected', {
+          userId: payload.userId,
+          refreshCount,
+          ipCount,
+          ipAddress
+        });
+        
+        await auditService.logSecurityEvent(
+          'suspicious_activity',
+          'Excessive token refresh attempts detected',
+          payload.userId,
+          ipAddress,
+          {
+            refreshCount,
+            ipCount,
+            timeWindow: '1 hour'
+          }
+        );
+      }
+
       // Get user
       const user = await UserModel.findById(payload.userId);
       if (!user) {
+        loggerService.warn('User not found during token refresh', {
+          userId: payload.userId,
+          sessionId: payload.sessionId
+        });
         return null;
       }
 
-      // Generate new token pair
+      // Generate new token pair with rotation
       const newTokenPair = await this.generateTokenPair(user, ipAddress, userAgent);
 
-      // Invalidate old session
+      // Invalidate old session (refresh token rotation)
       await this.invalidateUserSession(payload.sessionId);
 
-      loggerService.info('Access token refreshed', {
+      // Log successful token refresh
+      await auditService.logAuthentication(
+        user.id,
+        user.email,
+        'token_refresh',
+        true,
+        ipAddress,
+        userAgent
+      );
+
+      loggerService.info('Access token refreshed with rotation', {
         userId: user.id,
-        sessionId: payload.sessionId,
+        oldSessionId: payload.sessionId,
         ipAddress
       });
 
@@ -262,6 +331,20 @@ export class AuthService {
         ipAddress,
         userAgent
       });
+      
+      // Log failed refresh attempt
+      if (error instanceof AppError && error.context?.userId) {
+        await auditService.logAuthentication(
+          error.context.userId,
+          'unknown',
+          'token_refresh',
+          false,
+          ipAddress,
+          userAgent,
+          error.message
+        );
+      }
+      
       return null;
     }
   }

@@ -31,18 +31,27 @@ export const enforceHTTPS = (req: Request, res: Response, next: NextFunction): v
 };
 
 /**
- * Enhanced helmet configuration for security headers
+ * Enhanced helmet configuration for security headers with production hardening
  */
 export const securityHeaders = helmet({
-  // Content Security Policy
+  // Content Security Policy with strict production settings
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
       imgSrc: ["'self'", "data:", "https:", "blob:"],
-      scriptSrc: ["'self'"],
-      connectSrc: ["'self'", "https://api.facebook.com", "https://graph.instagram.com", "https://api.pinterest.com", "https://api.twitter.com"],
+      scriptSrc: process.env.NODE_ENV === 'production' 
+        ? ["'self'"] 
+        : ["'self'", "'unsafe-eval'"], // unsafe-eval only for development
+      connectSrc: [
+        "'self'", 
+        "https://api.facebook.com", 
+        "https://graph.instagram.com", 
+        "https://api.pinterest.com", 
+        "https://api.twitter.com",
+        "https://graph.facebook.com"
+      ],
       frameSrc: ["'none'"],
       objectSrc: ["'none'"],
       mediaSrc: ["'self'", "https:"],
@@ -51,13 +60,15 @@ export const securityHeaders = helmet({
       formAction: ["'self'"],
       frameAncestors: ["'none'"],
       baseUri: ["'self'"],
-      manifestSrc: ["'self'"]
-    }
+      manifestSrc: ["'self'"],
+      upgradeInsecureRequests: process.env.NODE_ENV === 'production' ? [] : null
+    },
+    reportOnly: process.env.NODE_ENV === 'development'
   },
   
-  // HTTP Strict Transport Security
+  // HTTP Strict Transport Security - enhanced for production
   hsts: {
-    maxAge: 31536000, // 1 year
+    maxAge: 63072000, // 2 years for production
     includeSubDomains: true,
     preload: true
   },
@@ -73,15 +84,47 @@ export const securityHeaders = helmet({
   // X-XSS-Protection
   xssFilter: true,
   
-  // Referrer Policy
+  // Referrer Policy - stricter for production
   referrerPolicy: {
-    policy: 'strict-origin-when-cross-origin'
+    policy: process.env.NODE_ENV === 'production' 
+      ? 'strict-origin-when-cross-origin' 
+      : 'strict-origin-when-cross-origin'
   },
   
   // Hide X-Powered-By header
   hidePoweredBy: true,
   
-  // Additional security headers can be added here if needed
+  // Cross-Origin Embedder Policy
+  crossOriginEmbedderPolicy: { 
+    policy: process.env.NODE_ENV === 'production' ? 'require-corp' : false 
+  },
+  
+  // Cross-Origin Opener Policy
+  crossOriginOpenerPolicy: { 
+    policy: 'same-origin' 
+  },
+  
+  // Cross-Origin Resource Policy
+  crossOriginResourcePolicy: { 
+    policy: 'same-origin' 
+  },
+  
+  // Permissions Policy (Feature Policy)
+  permissionsPolicy: {
+    camera: [],
+    microphone: [],
+    geolocation: [],
+    payment: [],
+    usb: [],
+    magnetometer: [],
+    gyroscope: [],
+    accelerometer: [],
+    ambient_light_sensor: [],
+    autoplay: ['self'],
+    encrypted_media: ['self'],
+    fullscreen: ['self'],
+    picture_in_picture: ['self']
+  }
 });
 
 /**
@@ -488,15 +531,17 @@ export const corsOptions = {
     'Accept', 
     'Origin',
     'X-CSRF-Token',
-    'X-API-Key'
+    'X-API-Key',
+    'X-Request-ID'
   ],
   exposedHeaders: [
     'X-RateLimit-Limit', 
     'X-RateLimit-Remaining', 
     'X-RateLimit-Reset',
-    'X-CSRF-Token'
+    'X-CSRF-Token',
+    'X-Request-ID'
   ],
-  maxAge: 86400 // 24 hours
+  maxAge: process.env.NODE_ENV === 'production' ? 86400 : 3600 // 24 hours in prod, 1 hour in dev
 };
 
 /**
@@ -563,4 +608,158 @@ export const requestTimeout = (timeoutMs: number = 30000) => {
 
     next();
   };
+};
+
+/**
+ * Production security hardening middleware
+ */
+export const productionSecurityHardening = (req: Request, res: Response, next: NextFunction): void => {
+  // Remove server information
+  res.removeHeader('Server');
+  res.removeHeader('X-Powered-By');
+  
+  // Add security headers not covered by helmet
+  res.setHeader('X-Robots-Tag', 'noindex, nofollow, nosnippet, noarchive');
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.setHeader('Surrogate-Control', 'no-store');
+  
+  // Prevent MIME type sniffing
+  res.setHeader('X-Download-Options', 'noopen');
+  res.setHeader('X-Permitted-Cross-Domain-Policies', 'none');
+  
+  next();
+};
+
+/**
+ * Enhanced input validation middleware for production
+ */
+export const productionInputValidation = (req: Request, res: Response, next: NextFunction): void => {
+  // Validate request size
+  const contentLength = parseInt(req.headers['content-length'] || '0', 10);
+  const maxSize = 50 * 1024 * 1024; // 50MB max
+  
+  if (contentLength > maxSize) {
+    loggerService.warn('Request size exceeded maximum limit', {
+      contentLength,
+      maxSize,
+      ip: req.ip,
+      path: req.path
+    });
+    
+    res.status(413).json({
+      success: false,
+      error: 'Request entity too large'
+    });
+    return;
+  }
+  
+  // Validate URL length
+  if (req.url.length > 2048) {
+    loggerService.warn('URL length exceeded maximum limit', {
+      urlLength: req.url.length,
+      ip: req.ip,
+      path: req.path
+    });
+    
+    res.status(414).json({
+      success: false,
+      error: 'URI too long'
+    });
+    return;
+  }
+  
+  // Validate header count and size
+  const headerCount = Object.keys(req.headers).length;
+  const headerSize = JSON.stringify(req.headers).length;
+  
+  if (headerCount > 100) {
+    loggerService.warn('Too many headers in request', {
+      headerCount,
+      ip: req.ip,
+      path: req.path
+    });
+    
+    res.status(400).json({
+      success: false,
+      error: 'Too many headers'
+    });
+    return;
+  }
+  
+  if (headerSize > 8192) { // 8KB
+    loggerService.warn('Headers size exceeded limit', {
+      headerSize,
+      ip: req.ip,
+      path: req.path
+    });
+    
+    res.status(431).json({
+      success: false,
+      error: 'Request header fields too large'
+    });
+    return;
+  }
+  
+  next();
+};
+
+/**
+ * Security monitoring middleware
+ */
+export const securityMonitoring = (req: Request, res: Response, next: NextFunction): void => {
+  const startTime = Date.now();
+  
+  // Monitor for suspicious patterns
+  const suspiciousPatterns = [
+    /\.\.\//g, // Directory traversal
+    /<script/gi, // XSS attempts
+    /union.*select/gi, // SQL injection
+    /exec\s*\(/gi, // Code execution
+    /eval\s*\(/gi, // Code evaluation
+    /javascript:/gi, // JavaScript protocol
+    /vbscript:/gi, // VBScript protocol
+    /data:.*base64/gi, // Base64 data URLs
+    /file:\/\//gi, // File protocol
+    /ftp:\/\//gi, // FTP protocol
+  ];
+  
+  const requestData = JSON.stringify({
+    url: req.url,
+    body: req.body,
+    query: req.query,
+    headers: req.headers
+  });
+  
+  for (const pattern of suspiciousPatterns) {
+    if (pattern.test(requestData)) {
+      loggerService.warn('Suspicious request pattern detected', {
+        pattern: pattern.source,
+        ip: req.ip,
+        path: req.path,
+        method: req.method,
+        userAgent: req.headers['user-agent']
+      });
+      
+      // Don't block immediately, but log for analysis
+      break;
+    }
+  }
+  
+  // Monitor response time
+  res.on('finish', () => {
+    const responseTime = Date.now() - startTime;
+    
+    if (responseTime > 10000) { // 10 seconds
+      loggerService.warn('Slow response detected', {
+        responseTime,
+        path: req.path,
+        method: req.method,
+        statusCode: res.statusCode
+      });
+    }
+  });
+  
+  next();
 };
