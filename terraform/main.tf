@@ -1,4 +1,4 @@
-# Terraform configuration for Social SoloBoss Automation on Google Cloud
+# Enhanced Terraform configuration for Social SoloBoss Automation on Google Cloud
 terraform {
   required_version = ">= 1.0"
   required_providers {
@@ -6,6 +6,20 @@ terraform {
       source  = "hashicorp/google"
       version = "~> 5.0"
     }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.1"
+    }
+    archive = {
+      source  = "hashicorp/archive"
+      version = "~> 2.2"
+    }
+  }
+
+  # Remote state backend for team collaboration
+  backend "gcs" {
+    bucket = "sma-terraform-state"
+    prefix = "terraform/state"
   }
 }
 
@@ -271,7 +285,267 @@ resource "random_id" "suffix" {
   byte_length = 4
 }
 
-# Outputs
+# Notification channels for monitoring
+resource "google_monitoring_notification_channel" "email" {
+  display_name = "Email Notifications - ${var.environment}"
+  type         = "email"
+  labels = {
+    email_address = var.notification_email
+  }
+  enabled = true
+}
+
+resource "google_monitoring_notification_channel" "slack" {
+  count        = var.slack_webhook_url != "" ? 1 : 0
+  display_name = "Slack Notifications - ${var.environment}"
+  type         = "slack"
+  labels = {
+    url = var.slack_webhook_url
+  }
+  enabled = true
+}
+
+# Monitoring module
+module "monitoring" {
+  source = "./modules/monitoring"
+
+  project_id = var.project_id
+  region     = var.region
+  environment = var.environment
+  
+  notification_channels = concat(
+    [google_monitoring_notification_channel.email.name],
+    var.slack_webhook_url != "" ? [google_monitoring_notification_channel.slack[0].name] : []
+  )
+
+  depends_on = [google_project_service.required_apis]
+}
+
+# Backup module
+module "backup" {
+  source = "./modules/backup"
+
+  project_id              = var.project_id
+  region                  = var.region
+  environment            = var.environment
+  database_instance_name = google_sql_database_instance.postgres.name
+  backup_retention_days  = var.backup_retention_days
+  backup_schedule        = var.backup_schedule
+
+  depends_on = [google_project_service.required_apis]
+}
+
+# Enhanced security configurations
+resource "google_compute_security_policy" "security_policy" {
+  name = "sma-security-policy-${var.environment}"
+
+  rule {
+    action   = "allow"
+    priority = "1000"
+    match {
+      versioned_expr = "SRC_IPS_V1"
+      config {
+        src_ip_ranges = ["*"]
+      }
+    }
+    description = "Default allow rule"
+  }
+
+  rule {
+    action   = "deny(403)"
+    priority = "2000"
+    match {
+      expr {
+        expression = "origin.region_code == 'CN'"
+      }
+    }
+    description = "Block traffic from China"
+  }
+
+  rule {
+    action   = "rate_based_ban"
+    priority = "2001"
+    match {
+      versioned_expr = "SRC_IPS_V1"
+      config {
+        src_ip_ranges = ["*"]
+      }
+    }
+    rate_limit_options {
+      conform_action = "allow"
+      exceed_action  = "deny(429)"
+      enforce_on_key = "IP"
+      rate_limit_threshold {
+        count        = 100
+        interval_sec = 60
+      }
+      ban_duration_sec = 600
+    }
+    description = "Rate limiting rule"
+  }
+}
+
+# SSL certificate for custom domain
+resource "google_compute_managed_ssl_certificate" "ssl_cert" {
+  count = var.custom_domain != "" ? 1 : 0
+  name  = "sma-ssl-cert-${var.environment}"
+
+  managed {
+    domains = [var.custom_domain]
+  }
+}
+
+# Global load balancer for high availability
+resource "google_compute_global_address" "lb_ip" {
+  name = "sma-lb-ip-${var.environment}"
+}
+
+resource "google_compute_url_map" "url_map" {
+  name            = "sma-url-map-${var.environment}"
+  default_service = google_compute_backend_service.backend_service.id
+
+  host_rule {
+    hosts        = var.custom_domain != "" ? [var.custom_domain] : ["*"]
+    path_matcher = "allpaths"
+  }
+
+  path_matcher {
+    name            = "allpaths"
+    default_service = google_compute_backend_service.backend_service.id
+
+    path_rule {
+      paths   = ["/api/*"]
+      service = google_compute_backend_service.backend_service.id
+    }
+
+    path_rule {
+      paths   = ["/*"]
+      service = google_compute_backend_service.frontend_service.id
+    }
+  }
+}
+
+resource "google_compute_backend_service" "backend_service" {
+  name        = "sma-backend-service-${var.environment}"
+  protocol    = "HTTP"
+  timeout_sec = 30
+
+  backend {
+    group = google_compute_region_network_endpoint_group.backend_neg.id
+  }
+
+  health_checks = [google_compute_health_check.backend_health.id]
+  
+  security_policy = google_compute_security_policy.security_policy.id
+}
+
+resource "google_compute_backend_service" "frontend_service" {
+  name        = "sma-frontend-service-${var.environment}"
+  protocol    = "HTTP"
+  timeout_sec = 30
+
+  backend {
+    group = google_compute_region_network_endpoint_group.frontend_neg.id
+  }
+
+  health_checks = [google_compute_health_check.frontend_health.id]
+  
+  security_policy = google_compute_security_policy.security_policy.id
+}
+
+resource "google_compute_region_network_endpoint_group" "backend_neg" {
+  name                  = "sma-backend-neg-${var.environment}"
+  network_endpoint_type = "SERVERLESS"
+  region                = var.region
+
+  cloud_run {
+    service = "sma-backend-${var.environment}"
+  }
+}
+
+resource "google_compute_region_network_endpoint_group" "frontend_neg" {
+  name                  = "sma-frontend-neg-${var.environment}"
+  network_endpoint_type = "SERVERLESS"
+  region                = var.region
+
+  cloud_run {
+    service = "sma-frontend-${var.environment}"
+  }
+}
+
+resource "google_compute_health_check" "backend_health" {
+  name = "sma-backend-health-${var.environment}"
+
+  http_health_check {
+    request_path = "/api/health"
+    port         = "3001"
+  }
+
+  check_interval_sec  = 30
+  timeout_sec         = 10
+  healthy_threshold   = 2
+  unhealthy_threshold = 3
+}
+
+resource "google_compute_health_check" "frontend_health" {
+  name = "sma-frontend-health-${var.environment}"
+
+  http_health_check {
+    request_path = "/"
+    port         = "80"
+  }
+
+  check_interval_sec  = 30
+  timeout_sec         = 10
+  healthy_threshold   = 2
+  unhealthy_threshold = 3
+}
+
+resource "google_compute_target_https_proxy" "https_proxy" {
+  name             = "sma-https-proxy-${var.environment}"
+  url_map          = google_compute_url_map.url_map.id
+  ssl_certificates = var.custom_domain != "" ? [google_compute_managed_ssl_certificate.ssl_cert[0].id] : []
+}
+
+resource "google_compute_global_forwarding_rule" "https_forwarding_rule" {
+  name       = "sma-https-forwarding-rule-${var.environment}"
+  target     = google_compute_target_https_proxy.https_proxy.id
+  port_range = "443"
+  ip_address = google_compute_global_address.lb_ip.address
+}
+
+# Additional variables
+variable "notification_email" {
+  description = "Email address for monitoring notifications"
+  type        = string
+  default     = ""
+}
+
+variable "slack_webhook_url" {
+  description = "Slack webhook URL for notifications"
+  type        = string
+  default     = ""
+}
+
+variable "backup_retention_days" {
+  description = "Number of days to retain backups"
+  type        = number
+  default     = 30
+}
+
+variable "backup_schedule" {
+  description = "Cron schedule for backups"
+  type        = string
+  default     = "0 2 * * *"
+}
+
+variable "custom_domain" {
+  description = "Custom domain for the application"
+  type        = string
+  default     = ""
+}
+
+# Enhanced outputs
 output "database_connection_string" {
   description = "Database connection string"
   value       = "postgresql://${google_sql_user.app_user.name}:${random_password.db_password.result}@${google_sql_database_instance.postgres.connection_name}/${google_sql_database.app_database.name}"
@@ -291,4 +565,24 @@ output "redis_port" {
 output "service_account_email" {
   description = "Service account email"
   value       = google_service_account.app_service_account.email
+}
+
+output "load_balancer_ip" {
+  description = "Load balancer IP address"
+  value       = google_compute_global_address.lb_ip.address
+}
+
+output "monitoring_dashboard_url" {
+  description = "Monitoring dashboard URL"
+  value       = module.monitoring.dashboard_url
+}
+
+output "backup_bucket_name" {
+  description = "Backup storage bucket name"
+  value       = module.backup.backup_bucket_name
+}
+
+output "disaster_recovery_bucket_name" {
+  description = "Disaster recovery bucket name"
+  value       = module.backup.disaster_recovery_bucket_name
 }

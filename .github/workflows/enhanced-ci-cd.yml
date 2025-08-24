@@ -1,0 +1,586 @@
+name: Enhanced CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop, 'release/*' ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+        - staging
+        - production
+      force_deploy:
+        description: 'Force deployment even if tests fail'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  NODE_VERSION: '20'
+  POSTGRES_VERSION: '15'
+  REDIS_VERSION: '7'
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # Security and vulnerability scanning
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run npm audit
+        run: npm audit --audit-level=moderate --json > npm-audit.json || true
+
+      - name: Upload npm audit results
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-audit-results
+          path: npm-audit.json
+
+      - name: Run Snyk security scan
+        uses: snyk/actions/node@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=medium --json > snyk-results.json
+        continue-on-error: true
+
+      - name: Upload Snyk results to GitHub Code Scanning
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: snyk.sarif
+
+      - name: Run CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          languages: javascript
+
+      - name: Run Semgrep security scan
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: >-
+            p/security-audit
+            p/secrets
+            p/owasp-top-ten
+        env:
+          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
+
+  # Code quality and linting
+  code-quality:
+    name: Code Quality Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint with SARIF output
+        run: |
+          npx eslint . --format @microsoft/eslint-formatter-sarif --output-file eslint-results.sarif
+        continue-on-error: true
+
+      - name: Upload ESLint results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: eslint-results.sarif
+
+      - name: Check Prettier formatting
+        run: npx prettier --check .
+
+      - name: Run SonarCloud Scan
+        uses: SonarSource/sonarcloud-github-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+  # Comprehensive testing suite
+  test-suite:
+    name: Test Suite
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        test-type: [unit, integration, e2e]
+    
+    services:
+      postgres:
+        image: postgres:${{ env.POSTGRES_VERSION }}
+        env:
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_USER: test_user
+          POSTGRES_DB: sma_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:${{ env.REDIS_VERSION }}
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build shared package
+        run: npm run build --workspace=packages/shared
+
+      - name: Run unit tests
+        if: matrix.test-type == 'unit'
+        run: |
+          npm run test:unit --workspace=packages/backend
+          npm run test:unit --workspace=packages/frontend
+          npm run test --workspace=packages/shared
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://test_user:test_password@localhost:5432/sma_test
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET: test_jwt_secret_key_for_ci
+          ENCRYPTION_KEY: test_encryption_key_32_characters
+
+      - name: Run integration tests
+        if: matrix.test-type == 'integration'
+        run: npm run test:integration --workspace=packages/backend
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://test_user:test_password@localhost:5432/sma_test
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET: test_jwt_secret_key_for_ci
+          ENCRYPTION_KEY: test_encryption_key_32_characters
+
+      - name: Build applications for E2E tests
+        if: matrix.test-type == 'e2e'
+        run: |
+          npm run build --workspace=packages/backend
+          npm run build --workspace=packages/frontend
+
+      - name: Run E2E tests
+        if: matrix.test-type == 'e2e'
+        run: |
+          npm run start --workspace=packages/backend &
+          sleep 10
+          npm run test:e2e --workspace=packages/backend
+          npm run preview --workspace=packages/frontend &
+          sleep 5
+          npm run test:e2e --workspace=packages/frontend
+        env:
+          NODE_ENV: test
+          PORT: 3001
+          DATABASE_URL: postgresql://test_user:test_password@localhost:5432/sma_test
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET: test_jwt_secret_key_for_ci
+          ENCRYPTION_KEY: test_encryption_key_32_characters
+          VITE_API_URL: http://localhost:3001/api
+
+      - name: Upload test coverage
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          flags: ${{ matrix.test-type }}
+          name: ${{ matrix.test-type }}-coverage
+
+  # Performance and load testing
+  performance-tests:
+    name: Performance Tests
+    runs-on: ubuntu-latest
+    needs: [test-suite]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+    
+    services:
+      postgres:
+        image: postgres:${{ env.POSTGRES_VERSION }}
+        env:
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_USER: test_user
+          POSTGRES_DB: sma_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:${{ env.REDIS_VERSION }}
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build packages
+        run: |
+          npm run build --workspace=packages/shared
+          npm run build --workspace=packages/backend
+
+      - name: Run performance tests
+        run: npm run test:performance --workspace=packages/backend
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://test_user:test_password@localhost:5432/sma_test
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET: test_jwt_secret_key_for_ci
+          ENCRYPTION_KEY: test_encryption_key_32_characters
+
+      - name: Run load tests with Artillery
+        run: |
+          npm install -g artillery
+          artillery run packages/backend/test/load/load-test.yml --output load-test-results.json
+
+      - name: Upload performance results
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-results
+          path: |
+            packages/backend/performance-results.json
+            load-test-results.json
+
+      - name: Performance regression check
+        run: |
+          node scripts/check-performance-regression.js
+
+  # Build and push container images
+  build-images:
+    name: Build Container Images
+    runs-on: ubuntu-latest
+    needs: [security-scan, code-quality, test-suite]
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: read
+      packages: write
+    
+    outputs:
+      backend-image: ${{ steps.meta.outputs.tags }}
+      frontend-image: ${{ steps.meta-frontend.outputs.tags }}
+      backend-digest: ${{ steps.build-backend.outputs.digest }}
+      frontend-digest: ${{ steps.build-frontend.outputs.digest }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata for backend
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/backend
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Extract metadata for frontend
+        id: meta-frontend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/frontend
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push backend image
+        id: build-backend
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: packages/backend/Dockerfile.prod
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+
+      - name: Build and push frontend image
+        id: build-frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: packages/frontend/Dockerfile.prod
+          push: true
+          tags: ${{ steps.meta-frontend.outputs.tags }}
+          labels: ${{ steps.meta-frontend.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+
+      - name: Sign container images
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign backend image
+        run: |
+          cosign sign --yes ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/backend@${{ steps.build-backend.outputs.digest }}
+
+      - name: Sign frontend image
+        run: |
+          cosign sign --yes ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/frontend@${{ steps.build-frontend.outputs.digest }}
+
+  # Deploy to staging environment
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [build-images]
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/develop') || 
+        (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging')
+    environment: 
+      name: staging
+      url: https://staging.sma-platform.com
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Google Cloud CLI
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          service_account_key: ${{ secrets.GCP_SA_KEY_STAGING }}
+          project_id: ${{ secrets.GCP_PROJECT_ID_STAGING }}
+
+      - name: Configure kubectl
+        run: |
+          gcloud container clusters get-credentials staging-cluster --zone us-central1-a
+
+      - name: Deploy with blue-green strategy
+        run: |
+          ./scripts/blue-green-deploy.sh staging ${{ needs.build-images.outputs.backend-image }} ${{ needs.build-images.outputs.frontend-image }}
+
+      - name: Run smoke tests
+        run: |
+          ./scripts/smoke-tests.sh https://staging.sma-platform.com
+
+      - name: Update deployment status
+        run: |
+          curl -X POST "${{ secrets.DEPLOYMENT_WEBHOOK_STAGING }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "environment": "staging",
+              "status": "deployed",
+              "version": "${{ github.sha }}",
+              "images": {
+                "backend": "${{ needs.build-images.outputs.backend-image }}",
+                "frontend": "${{ needs.build-images.outputs.frontend-image }}"
+              }
+            }'
+
+  # Deploy to production environment
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [build-images, performance-tests]
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || 
+        (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'production')
+    environment: 
+      name: production
+      url: https://sma-platform.com
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Google Cloud CLI
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          service_account_key: ${{ secrets.GCP_SA_KEY_PRODUCTION }}
+          project_id: ${{ secrets.GCP_PROJECT_ID_PRODUCTION }}
+
+      - name: Configure kubectl
+        run: |
+          gcloud container clusters get-credentials production-cluster --zone us-central1-a
+
+      - name: Create deployment backup
+        run: |
+          ./scripts/backup-deployment.sh production
+
+      - name: Deploy with blue-green strategy
+        id: deploy
+        run: |
+          ./scripts/blue-green-deploy.sh production ${{ needs.build-images.outputs.backend-image }} ${{ needs.build-images.outputs.frontend-image }}
+
+      - name: Run comprehensive smoke tests
+        run: |
+          ./scripts/smoke-tests.sh https://sma-platform.com --comprehensive
+
+      - name: Monitor deployment health
+        run: |
+          ./scripts/monitor-deployment.sh production 300 # Monitor for 5 minutes
+
+      - name: Update deployment status
+        run: |
+          curl -X POST "${{ secrets.DEPLOYMENT_WEBHOOK_PRODUCTION }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "environment": "production",
+              "status": "deployed",
+              "version": "${{ github.sha }}",
+              "images": {
+                "backend": "${{ needs.build-images.outputs.backend-image }}",
+                "frontend": "${{ needs.build-images.outputs.frontend-image }}"
+              }
+            }'
+
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          echo "Deployment failed, initiating rollback..."
+          ./scripts/rollback-deployment.sh production
+          curl -X POST "${{ secrets.DEPLOYMENT_WEBHOOK_PRODUCTION }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "environment": "production",
+              "status": "rolled_back",
+              "version": "${{ github.sha }}",
+              "reason": "Deployment failure"
+            }'
+
+  # Post-deployment monitoring and validation
+  post-deployment-validation:
+    name: Post-Deployment Validation
+    runs-on: ubuntu-latest
+    needs: [deploy-production]
+    if: always() && needs.deploy-production.result == 'success'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run extended health checks
+        run: |
+          ./scripts/extended-health-check.sh https://sma-platform.com
+
+      - name: Run security validation
+        run: |
+          ./scripts/security-validation.sh https://sma-platform.com
+
+      - name: Update monitoring dashboards
+        run: |
+          ./scripts/update-monitoring.sh production ${{ github.sha }}
+
+      - name: Send deployment notification
+        uses: 8398a7/action-slack@v3
+        with:
+          status: custom
+          custom_payload: |
+            {
+              "text": "🚀 Production deployment successful!",
+              "attachments": [{
+                "color": "good",
+                "fields": [{
+                  "title": "Version",
+                  "value": "${{ github.sha }}",
+                  "short": true
+                }, {
+                  "title": "Environment",
+                  "value": "Production",
+                  "short": true
+                }, {
+                  "title": "Deployed by",
+                  "value": "${{ github.actor }}",
+                  "short": true
+                }]
+              }]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
+
+  # Cleanup and maintenance
+  cleanup:
+    name: Cleanup Old Resources
+    runs-on: ubuntu-latest
+    needs: [deploy-production]
+    if: always()
+    
+    steps:
+      - name: Cleanup old container images
+        run: |
+          # Keep only the last 10 images
+          ./scripts/cleanup-images.sh 10
+
+      - name: Cleanup old deployments
+        run: |
+          # Keep only the last 5 deployments
+          ./scripts/cleanup-deployments.sh 5
+
+      - name: Update deployment metrics
+        run: |
+          ./scripts/update-deployment-metrics.sh

@@ -252,7 +252,7 @@ export class TouchGestureUtils {
 
     element.addEventListener('touchend', () => {
       initialDistance = 0;
-      currentScale = 1;
+      // currentScale = 1;
     });
   }
 

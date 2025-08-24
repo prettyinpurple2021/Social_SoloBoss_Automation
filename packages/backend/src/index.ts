@@ -14,6 +14,9 @@ import integrationErrorsRoutes from './routes/integration-errors';
 import analyticsRoutes from './routes/analytics';
 import schedulingRoutes from './routes/scheduling';
 import categoriesRoutes from './routes/categories';
+import contentApprovalRoutes from './routes/content-approval';
+import contentVersioningRoutes from './routes/content-versioning';
+import contentCalendarRoutes from './routes/content-calendar';
 import { createSoloBossRoutes } from './routes/soloboss';
 import { TokenRefreshService } from './services/TokenRefreshService';
 import { schedulerService } from './services/SchedulerService';
@@ -141,6 +144,11 @@ app.use('/api/scheduling', generalRateLimit, schedulingRoutes);
 
 // Categories and tags routes
 app.use('/api/categories', generalRateLimit, categoriesRoutes);
+
+// Advanced content management routes
+app.use('/api/content-approval', generalRateLimit, contentApprovalRoutes);
+app.use('/api/content-versioning', generalRateLimit, contentVersioningRoutes);
+app.use('/api/content-calendar', generalRateLimit, contentCalendarRoutes);
 
 // 404 handler (must be before error handler)
 app.use('*', notFoundHandler);

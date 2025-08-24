@@ -91,7 +91,6 @@ export class NotificationManager {
         await registration.showNotification(title, {
           icon: '/pwa-192x192.png',
           badge: '/pwa-192x192.png',
-          vibrate: [200, 100, 200],
           ...options
         });
       } else {
@@ -125,7 +124,7 @@ export class NotificationManager {
     }
   }
 
-  private static urlBase64ToUint8Array(base64String: string): Uint8Array {
+  private static urlBase64ToUint8Array(base64String: string): ArrayBuffer {
     const padding = '='.repeat((4 - base64String.length % 4) % 4);
     const base64 = (base64String + padding)
       .replace(/-/g, '+')
@@ -137,7 +136,7 @@ export class NotificationManager {
     for (let i = 0; i < rawData.length; ++i) {
       outputArray[i] = rawData.charCodeAt(i);
     }
-    return outputArray;
+    return outputArray.buffer;
   }
 }
 
