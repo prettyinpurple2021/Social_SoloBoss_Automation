@@ -302,7 +302,7 @@ export class HashtagOptimizationService {
       });
     }
 
-    if (categoryHashtags.length > 0) {
+    if (categoryHashtags.length > 0 && categoryHashtags[0]) {
       suggestions.push({
         hashtag: categoryHashtags[0],
         popularity: 'high',

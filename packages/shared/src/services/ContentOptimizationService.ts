@@ -472,7 +472,7 @@ export class ContentOptimizationService {
     }
 
     // Check file extension
-    const supportedFormats = specs[0].formats;
+    const supportedFormats = specs[0]?.formats || [];
     const hasValidFormat = supportedFormats.some(format => 
       imageUrl.toLowerCase().includes(`.${format}`)
     );

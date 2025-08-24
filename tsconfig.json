@@ -4,18 +4,26 @@
     "declaration": true,
     "declarationMap": true,
     "skipLibCheck": true,
-    "strict": false,                // Disable strict type checking
-    "noImplicitAny": false,         // Allow variables to have an implicit "any" type
-    "noImplicitReturns": false,     // Allow functions to not explicitly return a value
-    "noFallthroughCasesInSwitch": false, // Allow fallthrough in switch statements
-    "esModuleInterop": true,        // Enable compatibility with CommonJS modules
-    "forceConsistentCasingInFileNames": true, // Enforce consistent casing in imports
-    "outDir": "./dist",             // Output compiled files to the "dist" folder
-    "allowJs": true                 // Allow JavaScript files in the project
+    "strict": true,
+    "noImplicitAny": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "target": "ES2020",
+    "lib": ["ES2020"],
+    "module": "ESNext"
   },
   "files": [],
-  "include": ["**/*.ts"],            // Include all TypeScript files in the project
-  "exclude": ["node_modules"],      // Exclude node_modules to speed up compilation
+  "include": [],
+  "exclude": ["node_modules", "dist", "build"],
   "references": [
     {
       "path": "./packages/backend"

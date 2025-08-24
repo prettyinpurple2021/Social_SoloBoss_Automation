@@ -1,6 +1,11 @@
-FROM node:20-alpine
+# Development Dockerfile for Backend
+FROM node:18-alpine
 
+# Set working directory
 WORKDIR /app
+
+# Install system dependencies
+RUN apk add --no-cache curl
 
 # Copy package files
 COPY package*.json ./
@@ -8,19 +13,24 @@ COPY packages/backend/package*.json ./packages/backend/
 COPY packages/shared/package*.json ./packages/shared/
 
 # Install dependencies
-RUN npm ci
+RUN npm ci --include=dev
 
 # Copy source code
 COPY packages/backend/src ./packages/backend/src
 COPY packages/shared/src ./packages/shared/src
+COPY tsconfig.json ./
 COPY packages/backend/tsconfig.json ./packages/backend/
 COPY packages/shared/tsconfig.json ./packages/shared/
 
-# Build shared package
-RUN npm run build --workspace=packages/shared
+# Build shared package first
+RUN npm run build --workspace=@sma/shared
 
 # Expose port
 EXPOSE 3001
 
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:3001/api/health || exit 1
+
 # Start development server
-CMD ["npm", "run", "dev", "--workspace=packages/backend"]
+CMD ["npm", "run", "dev", "--workspace=@sma/backend"]

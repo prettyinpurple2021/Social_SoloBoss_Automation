@@ -89,16 +89,21 @@ export class ImageOptimizationService {
     // Add platform-specific suggestions
     suggestions.push(...this.getPlatformSpecificSuggestions(platform, imageType));
 
-    return {
+    const result: ImageValidationResult = {
       isValid: errors.length === 0,
       errors,
       warnings,
-      suggestions,
-      recommendedDimensions: typeSpec ? {
+      suggestions
+    };
+
+    if (typeSpec) {
+      result.recommendedDimensions = {
         width: typeSpec.width,
         height: typeSpec.height
-      } : undefined
-    };
+      };
+    }
+
+    return result;
   }
 
   public static getOptimalDimensionsForPlatform(

@@ -4,3 +4,6 @@ export * from './post';
 export * from './platform';
 export * from './auth';
 export * from './blogger';
+export * from './analytics';
+export * from './integration';
+export * from './scheduling';

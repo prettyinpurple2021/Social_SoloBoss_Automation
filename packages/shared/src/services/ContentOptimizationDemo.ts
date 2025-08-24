@@ -65,7 +65,7 @@ export class ContentOptimizationDemo {
       }
 
       // Image optimization
-      if (samplePost.images && samplePost.images.length > 0) {
+      if (samplePost.images && samplePost.images.length > 0 && samplePost.images[0]) {
         const imageValidation = ImageOptimizationService.validateImageForPlatform(
           samplePost.images[0], 
           platform
