@@ -31,6 +31,7 @@ import {
 } from '@mui/icons-material';
 import { Platform, PlatformConnection } from '@sma/shared/types/platform';
 import { PLATFORM_NAMES, PLATFORM_COLORS } from '@sma/shared/constants/platforms';
+import { platformsApi } from '../../services';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 
@@ -51,60 +52,43 @@ const platformIcons = {
 };
 
 export const PlatformConnections: React.FC<PlatformConnectionsProps> = ({
-    connections = [],
+    connections,
     onConnect,
     onDisconnect,
     onRefresh
 }) => {
-    const [mockConnections, setMockConnections] = useState<PlatformConnection[]>([]);
+    const [loadedConnections, setLoadedConnections] = useState<PlatformConnection[]>([]);
     const [selectedPlatform, setSelectedPlatform] = useState<Platform | null>(null);
     const [isConnecting, setIsConnecting] = useState(false);
     const [disconnectDialog, setDisconnectDialog] = useState<string | null>(null);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
-    // Mock data for demonstration
     useEffect(() => {
-        const mockData: PlatformConnection[] = [
-            {
-                id: '1',
-                userId: 'user1',
-                platform: Platform.FACEBOOK,
-                platformUserId: 'fb_123456',
-                platformUsername: 'My Business Page',
-                accessToken: 'encrypted_token_1',
-                tokenExpiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
-                isActive: true,
-                createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // 7 days ago
-                updatedAt: new Date()
-            },
-            {
-                id: '2',
-                userId: 'user1',
-                platform: Platform.INSTAGRAM,
-                platformUserId: 'ig_789012',
-                platformUsername: '@mybusiness',
-                accessToken: 'encrypted_token_2',
-                tokenExpiresAt: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000), // 45 days from now
-                isActive: true,
-                createdAt: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000), // 14 days ago
-                updatedAt: new Date()
-            },
-            {
-                id: '3',
-                userId: 'user1',
-                platform: Platform.X,
-                platformUserId: 'x_345678',
-                platformUsername: '@mybusiness',
-                accessToken: 'encrypted_token_3',
-                tokenExpiresAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000), // 5 days from now (expiring soon)
-                isActive: true,
-                createdAt: new Date(Date.now() - 21 * 24 * 60 * 60 * 1000), // 21 days ago
-                updatedAt: new Date()
-            }
-        ];
-        setMockConnections(mockData);
-    }, []);
+        if (!connections) {
+            loadConnections();
+        }
+    }, [connections]);
 
-    const displayConnections = connections.length > 0 ? connections : mockConnections;
+    const loadConnections = async () => {
+        setLoading(true);
+        setError(null);
+        
+        try {
+            const response = await platformsApi.getConnections();
+            if (response.success && response.data) {
+                setLoadedConnections(response.data);
+            } else {
+                setError(response.error || 'Failed to load connections');
+            }
+        } catch (err) {
+            setError('Failed to load connections');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const displayConnections = connections !== undefined ? connections : loadedConnections;
     const connectedPlatforms = displayConnections.map(conn => conn.platform);
     const availablePlatforms = Object.values(Platform).filter(
         platform => !connectedPlatforms.includes(platform)
@@ -113,32 +97,18 @@ export const PlatformConnections: React.FC<PlatformConnectionsProps> = ({
     const handleConnect = async (platform: Platform) => {
         setSelectedPlatform(platform);
         setIsConnecting(true);
+        setError(null);
 
         try {
-            // Simulate OAuth flow
-            await new Promise(resolve => setTimeout(resolve, 2000));
-
             if (onConnect) {
                 onConnect(platform);
+            } else {
+                const newConnection = await platformsApi.connectPlatformWithPopup(platform);
+                setLoadedConnections(prev => [...prev, newConnection]);
             }
-
-            // Mock successful connection
-            const newConnection: PlatformConnection = {
-                id: `mock_${Date.now()}`,
-                userId: 'user1',
-                platform,
-                platformUserId: `${platform}_${Date.now()}`,
-                platformUsername: `@user_${platform}`,
-                accessToken: 'encrypted_token_new',
-                tokenExpiresAt: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000),
-                isActive: true,
-                createdAt: new Date(),
-                updatedAt: new Date()
-            };
-
-            setMockConnections(prev => [...prev, newConnection]);
         } catch (error) {
             console.error('Connection failed:', error);
+            setError(error instanceof Error ? error.message : 'Failed to connect platform');
         } finally {
             setIsConnecting(false);
             setSelectedPlatform(null);
@@ -149,29 +119,43 @@ export const PlatformConnections: React.FC<PlatformConnectionsProps> = ({
         setDisconnectDialog(connectionId);
     };
 
-    const confirmDisconnect = () => {
+    const confirmDisconnect = async () => {
         if (disconnectDialog) {
-            if (onDisconnect) {
-                onDisconnect(disconnectDialog);
+            try {
+                if (onDisconnect) {
+                    onDisconnect(disconnectDialog);
+                } else {
+                    const response = await platformsApi.disconnectPlatform(disconnectDialog);
+                    if (response.success) {
+                        setLoadedConnections(prev => prev.filter(conn => conn.id !== disconnectDialog));
+                    } else {
+                        setError(response.error || 'Failed to disconnect platform');
+                    }
+                }
+            } catch (err) {
+                setError('Failed to disconnect platform');
             }
-
-            // Mock disconnection
-            setMockConnections(prev => prev.filter(conn => conn.id !== disconnectDialog));
             setDisconnectDialog(null);
         }
     };
 
     const handleRefreshToken = async (connectionId: string) => {
-        if (onRefresh) {
-            onRefresh(connectionId);
+        try {
+            if (onRefresh) {
+                onRefresh(connectionId);
+            } else {
+                const response = await platformsApi.refreshToken(connectionId);
+                if (response.success && response.connection) {
+                    setLoadedConnections(prev => prev.map(conn =>
+                        conn.id === connectionId ? response.connection! : conn
+                    ));
+                } else {
+                    setError(response.error || 'Failed to refresh token');
+                }
+            }
+        } catch (err) {
+            setError('Failed to refresh token');
         }
-
-        // Mock token refresh
-        setMockConnections(prev => prev.map(conn =>
-            conn.id === connectionId
-                ? { ...conn, tokenExpiresAt: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000), updatedAt: new Date() }
-                : conn
-        ));
     };
 
     const getConnectionStatus = (connection: PlatformConnection) => {
@@ -209,12 +193,22 @@ export const PlatformConnections: React.FC<PlatformConnectionsProps> = ({
                 </Typography>
             </Box>
 
+            {error && (
+                <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
+                    {error}
+                </Alert>
+            )}
+
             {/* Connected Platforms */}
             <Typography variant="h6" gutterBottom>
                 Connected Accounts
             </Typography>
 
-            {displayConnections.length === 0 ? (
+            {loading ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                    <CircularProgress />
+                </Box>
+            ) : displayConnections.length === 0 ? (
                 <Alert severity="info" sx={{ mb: 3 }}>
                     No platforms connected yet. Connect your social media accounts to start posting.
                 </Alert>

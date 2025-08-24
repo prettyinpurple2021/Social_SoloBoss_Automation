@@ -12,7 +12,8 @@ import {
     Avatar,
     Stack,
     Divider,
-    Alert
+    Alert,
+    CircularProgress
 } from '@mui/material';
 import {
     MoreVert,
@@ -30,6 +31,7 @@ import {
 } from '@mui/icons-material';
 import { Post, PostStatus } from '@sma/shared/types/post';
 import { Platform } from '@sma/shared/types/platform';
+import { postsApi } from '../../services';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 
@@ -78,89 +80,35 @@ export const PostsList: React.FC<PostsListProps> = ({
 }) => {
     const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
     const [selectedPost, setSelectedPost] = useState<Post | null>(null);
-    const [mockPosts, setMockPosts] = useState<Post[]>([]);
+    const [loadedPosts, setLoadedPosts] = useState<Post[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
-    // Mock data for demonstration
     useEffect(() => {
-        const mockData: Post[] = [
-            {
-                id: '1',
-                userId: 'user1',
-                content: 'Check out our latest blog post about social media automation! 🚀',
-                images: [],
-                hashtags: ['#socialmedia', '#automation', '#productivity'],
-                platforms: [Platform.FACEBOOK, Platform.X],
-                scheduledTime: new Date(Date.now() + 2 * 60 * 60 * 1000), // 2 hours from now
-                status: PostStatus.SCHEDULED,
-                source: 'manual' as any,
-                platformPosts: [
-                    {
-                        platform: Platform.FACEBOOK,
-                        content: 'Check out our latest blog post about social media automation! 🚀',
-                        status: PostStatus.SCHEDULED
-                    },
-                    {
-                        platform: Platform.X,
-                        content: 'Check out our latest blog post about social media automation! 🚀',
-                        status: PostStatus.SCHEDULED
-                    }
-                ],
-                createdAt: new Date(),
-                updatedAt: new Date()
-            },
-            {
-                id: '2',
-                userId: 'user1',
-                content: 'Just published a new article on content marketing strategies.',
-                images: ['https://example.com/image1.jpg'],
-                hashtags: ['#contentmarketing', '#strategy'],
-                platforms: [Platform.INSTAGRAM, Platform.PINTEREST],
-                status: PostStatus.PUBLISHED,
-                source: 'blogger' as any,
-                platformPosts: [
-                    {
-                        platform: Platform.INSTAGRAM,
-                        platformPostId: 'ig_123',
-                        content: 'Just published a new article on content marketing strategies.',
-                        status: PostStatus.PUBLISHED,
-                        publishedAt: new Date(Date.now() - 30 * 60 * 1000) // 30 minutes ago
-                    },
-                    {
-                        platform: Platform.PINTEREST,
-                        platformPostId: 'pin_456',
-                        content: 'Just published a new article on content marketing strategies.',
-                        status: PostStatus.PUBLISHED,
-                        publishedAt: new Date(Date.now() - 25 * 60 * 1000) // 25 minutes ago
-                    }
-                ],
-                createdAt: new Date(Date.now() - 60 * 60 * 1000),
-                updatedAt: new Date(Date.now() - 30 * 60 * 1000)
-            },
-            {
-                id: '3',
-                userId: 'user1',
-                content: 'Working on some exciting new features! Stay tuned...',
-                images: [],
-                hashtags: ['#development', '#features'],
-                platforms: [Platform.X],
-                status: PostStatus.FAILED,
-                source: 'manual' as any,
-                platformPosts: [
-                    {
-                        platform: Platform.X,
-                        content: 'Working on some exciting new features! Stay tuned...',
-                        status: PostStatus.FAILED,
-                        error: 'Rate limit exceeded. Please try again later.'
-                    }
-                ],
-                createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
-                updatedAt: new Date(Date.now() - 2 * 60 * 60 * 1000)
-            }
-        ];
-        setMockPosts(mockData);
-    }, []);
+        if (!posts) {
+            loadPosts();
+        }
+    }, [posts]);
 
-    const displayPosts = posts !== undefined ? posts : mockPosts;
+    const loadPosts = async () => {
+        setLoading(true);
+        setError(null);
+        
+        try {
+            const response = await postsApi.getPosts({ limit: 20 });
+            if (response.success && response.data) {
+                setLoadedPosts(response.data);
+            } else {
+                setError(response.error || 'Failed to load posts');
+            }
+        } catch (err) {
+            setError('Failed to load posts');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const displayPosts = posts !== undefined ? posts : loadedPosts;
 
     const handleMenuOpen = (event: React.MouseEvent<HTMLElement>, post: Post) => {
         setAnchorEl(event.currentTarget);
@@ -179,9 +127,22 @@ export const PostsList: React.FC<PostsListProps> = ({
         handleMenuClose();
     };
 
-    const handleDelete = () => {
-        if (selectedPost && onDeletePost) {
-            onDeletePost(selectedPost.id);
+    const handleDelete = async () => {
+        if (selectedPost) {
+            try {
+                if (onDeletePost) {
+                    onDeletePost(selectedPost.id);
+                } else {
+                    const response = await postsApi.deletePost(selectedPost.id);
+                    if (response.success) {
+                        setLoadedPosts(prev => prev.filter(post => post.id !== selectedPost.id));
+                    } else {
+                        setError(response.error || 'Failed to delete post');
+                    }
+                }
+            } catch (err) {
+                setError('Failed to delete post');
+            }
         }
         handleMenuClose();
     };
@@ -194,6 +155,22 @@ export const PostsList: React.FC<PostsListProps> = ({
     const getRelativeTime = (date: Date) => {
         return dayjs(date).fromNow();
     };
+
+    if (loading) {
+        return (
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 8 }}>
+                <CircularProgress />
+            </Box>
+        );
+    }
+
+    if (error) {
+        return (
+            <Alert severity="error" sx={{ mb: 3 }}>
+                {error}
+            </Alert>
+        );
+    }
 
     if (displayPosts.length === 0) {
         return (

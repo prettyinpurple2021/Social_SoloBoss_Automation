@@ -7,8 +7,24 @@ import {
   FormControlLabel,
   Switch,
   TextField,
-  Alert
+  Button,
+  Alert,
+  Divider,
+  List,
+  ListItem,
+  ListItemIcon,
+  ListItemText,
+  ListItemSecondaryAction
 } from '@mui/material';
+import {
+  Email,
+  Notifications,
+  Error,
+  Warning,
+  Assessment,
+  Schedule,
+  CheckCircle
+} from '@mui/icons-material';
 import { NotificationSettings as NotificationSettingsType } from '../../types/user';
 
 interface NotificationSettingsProps {
@@ -20,21 +36,56 @@ export const NotificationSettings: React.FC<NotificationSettingsProps> = ({
   notificationSettings,
   onUpdate
 }) => {
-  const [notificationEmail, setNotificationEmail] = useState(
-    notificationSettings.notificationEmail || ''
-  );
+  const [testEmailSent, setTestEmailSent] = useState(false);
 
-  const handleToggle = (setting: keyof NotificationSettingsType) => (
-    event: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    onUpdate({ [setting]: event.target.checked });
+  const handleToggle = (setting: keyof NotificationSettingsType) => {
+    onUpdate({
+      [setting]: !notificationSettings[setting]
+    });
   };
 
-  const handleEmailChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const email = event.target.value;
-    setNotificationEmail(email);
-    onUpdate({ notificationEmail: email });
+  const handleEmailChange = (email: string) => {
+    onUpdate({
+      notificationEmail: email
+    });
   };
+
+  const sendTestEmail = async () => {
+    // Mock sending test email
+    setTestEmailSent(true);
+    setTimeout(() => setTestEmailSent(false), 3000);
+  };
+
+  const notificationTypes = [
+    {
+      key: 'emailNotifications' as keyof NotificationSettingsType,
+      icon: <Email />,
+      title: 'Email Notifications',
+      description: 'Receive email notifications for important events',
+      enabled: notificationSettings.emailNotifications
+    },
+    {
+      key: 'failedPostNotifications' as keyof NotificationSettingsType,
+      icon: <Error />,
+      title: 'Failed Post Notifications',
+      description: 'Get notified when posts fail to publish',
+      enabled: notificationSettings.failedPostNotifications
+    },
+    {
+      key: 'integrationIssueNotifications' as keyof NotificationSettingsType,
+      icon: <Warning />,
+      title: 'Integration Issues',
+      description: 'Alerts for Blogger and SoloBoss integration problems',
+      enabled: notificationSettings.integrationIssueNotifications
+    },
+    {
+      key: 'weeklyReports' as keyof NotificationSettingsType,
+      icon: <Assessment />,
+      title: 'Weekly Reports',
+      description: 'Receive weekly analytics and performance summaries',
+      enabled: notificationSettings.weeklyReports
+    }
+  ];
 
   return (
     <Box>
@@ -42,126 +93,161 @@ export const NotificationSettings: React.FC<NotificationSettingsProps> = ({
         Notification Settings
       </Typography>
       <Typography variant="body2" color="text.secondary" gutterBottom sx={{ mb: 3 }}>
-        Configure how and when you receive notifications about your social media posts
+        Configure how and when you receive notifications
       </Typography>
 
       <Grid container spacing={3}>
+        {/* Email Configuration */}
         <Grid item xs={12}>
           <Paper sx={{ p: 3 }}>
-            <Typography variant="subtitle1" gutterBottom>
-              Email Notifications
+            <Typography variant="h6" gutterBottom>
+              Email Configuration
             </Typography>
             
-            <Box sx={{ mb: 3 }}>
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={notificationSettings.emailNotifications || false}
-                    onChange={handleToggle('emailNotifications')}
-                  />
-                }
-                label="Enable email notifications"
-              />
-            </Box>
-
-            {notificationSettings.emailNotifications && (
-              <Box sx={{ mb: 2 }}>
+            <Grid container spacing={2} alignItems="center">
+              <Grid item xs={12} md={8}>
                 <TextField
                   fullWidth
-                  type="email"
                   label="Notification Email"
-                  value={notificationEmail}
-                  onChange={handleEmailChange}
+                  type="email"
+                  value={notificationSettings.notificationEmail || ''}
+                  onChange={(e) => handleEmailChange(e.target.value)}
                   placeholder="Enter email address for notifications"
                   helperText="Leave empty to use your account email"
                 />
-              </Box>
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <Button
+                  variant="outlined"
+                  onClick={sendTestEmail}
+                  disabled={!notificationSettings.emailNotifications}
+                  fullWidth
+                >
+                  Send Test Email
+                </Button>
+              </Grid>
+            </Grid>
+
+            {testEmailSent && (
+              <Alert severity="success" sx={{ mt: 2 }}>
+                Test email sent successfully! Check your inbox.
+              </Alert>
+            )}
+
+            {!notificationSettings.emailNotifications && (
+              <Alert severity="info" sx={{ mt: 2 }}>
+                Enable email notifications to receive alerts and reports.
+              </Alert>
             )}
           </Paper>
         </Grid>
 
-        <Grid item xs={12} md={6}>
-          <Paper sx={{ p: 3 }}>
-            <Typography variant="subtitle1" gutterBottom>
-              Post Notifications
-            </Typography>
-            
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={notificationSettings.failedPostNotifications || false}
-                    onChange={handleToggle('failedPostNotifications')}
-                    disabled={!notificationSettings.emailNotifications}
-                  />
-                }
-                label="Failed post notifications"
-              />
-              
-              <Typography variant="body2" color="text.secondary">
-                Get notified when a scheduled post fails to publish
-              </Typography>
-            </Box>
-          </Paper>
-        </Grid>
-
-        <Grid item xs={12} md={6}>
-          <Paper sx={{ p: 3 }}>
-            <Typography variant="subtitle1" gutterBottom>
-              Integration Notifications
-            </Typography>
-            
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={notificationSettings.integrationIssueNotifications || false}
-                    onChange={handleToggle('integrationIssueNotifications')}
-                    disabled={!notificationSettings.emailNotifications}
-                  />
-                }
-                label="Integration issue notifications"
-              />
-              
-              <Typography variant="body2" color="text.secondary">
-                Get notified about issues with Blogger or SoloBoss integrations
-              </Typography>
-            </Box>
-          </Paper>
-        </Grid>
-
+        {/* Notification Types */}
         <Grid item xs={12}>
           <Paper sx={{ p: 3 }}>
-            <Typography variant="subtitle1" gutterBottom>
-              Reports
+            <Typography variant="h6" gutterBottom>
+              Notification Types
             </Typography>
             
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={notificationSettings.weeklyReports || false}
-                    onChange={handleToggle('weeklyReports')}
-                    disabled={!notificationSettings.emailNotifications}
-                  />
-                }
-                label="Weekly reports"
-              />
-              
-              <Typography variant="body2" color="text.secondary">
-                Receive a weekly summary of your posting activity and performance
-              </Typography>
-            </Box>
+            <List>
+              {notificationTypes.map((notification, index) => (
+                <React.Fragment key={notification.key}>
+                  <ListItem>
+                    <ListItemIcon>
+                      {notification.icon}
+                    </ListItemIcon>
+                    <ListItemText
+                      primary={notification.title}
+                      secondary={notification.description}
+                    />
+                    <ListItemSecondaryAction>
+                      <Switch
+                        checked={notification.enabled}
+                        onChange={() => handleToggle(notification.key)}
+                        color="primary"
+                      />
+                    </ListItemSecondaryAction>
+                  </ListItem>
+                  {index < notificationTypes.length - 1 && <Divider />}
+                </React.Fragment>
+              ))}
+            </List>
           </Paper>
         </Grid>
 
-        {!notificationSettings.emailNotifications && (
-          <Grid item xs={12}>
+        {/* Notification Examples */}
+        <Grid item xs={12}>
+          <Paper sx={{ p: 3 }}>
+            <Typography variant="h6" gutterBottom>
+              What You'll Receive
+            </Typography>
+            
+            <Grid container spacing={2}>
+              <Grid item xs={12} md={6}>
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="subtitle2" gutterBottom>
+                    <CheckCircle color="success" fontSize="small" sx={{ mr: 1, verticalAlign: 'middle' }} />
+                    Successful Posts
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Confirmation when posts are successfully published to all platforms
+                  </Typography>
+                </Box>
+
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="subtitle2" gutterBottom>
+                    <Error color="error" fontSize="small" sx={{ mr: 1, verticalAlign: 'middle' }} />
+                    Failed Posts
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Immediate alerts when posts fail with retry options and error details
+                  </Typography>
+                </Box>
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="subtitle2" gutterBottom>
+                    <Schedule color="info" fontSize="small" sx={{ mr: 1, verticalAlign: 'middle' }} />
+                    Scheduled Reminders
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Reminders about upcoming scheduled posts and content reviews
+                  </Typography>
+                </Box>
+
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="subtitle2" gutterBottom>
+                    <Assessment color="primary" fontSize="small" sx={{ mr: 1, verticalAlign: 'middle' }} />
+                    Performance Reports
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Weekly summaries of your social media performance and engagement
+                  </Typography>
+                </Box>
+              </Grid>
+            </Grid>
+          </Paper>
+        </Grid>
+
+        {/* Notification Frequency */}
+        <Grid item xs={12}>
+          <Paper sx={{ p: 3 }}>
+            <Typography variant="h6" gutterBottom>
+              Notification Frequency
+            </Typography>
+            
             <Alert severity="info">
-              Enable email notifications to configure specific notification types
+              <Typography variant="body2">
+                <strong>Immediate:</strong> Failed posts, integration issues, and critical errors
+                <br />
+                <strong>Daily:</strong> Summary of successful posts and pending reviews
+                <br />
+                <strong>Weekly:</strong> Performance reports and analytics summaries
+              </Typography>
             </Alert>
-          </Grid>
-        )}
+          </Paper>
+        </Grid>
       </Grid>
     </Box>
   );

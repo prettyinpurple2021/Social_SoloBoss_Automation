@@ -19,11 +19,13 @@ import {
   Settings,
   AccountCircle,
   Add,
-  AutoAwesome
+  AutoAwesome,
+  Analytics
 } from '@mui/icons-material';
 import { PostsList } from './PostsList';
 import { CalendarView } from './CalendarView';
 import { PlatformConnections } from './PlatformConnections';
+import { AnalyticsDashboard } from './AnalyticsDashboard';
 import { PostForm } from './PostForm';
 
 
@@ -236,10 +238,26 @@ export const Dashboard: React.FC = () => {
               }}
             />
             <Tab
-              icon={<Settings />}
-              label="Platforms"
+              icon={<Analytics />}
+              label="Analytics"
               id="dashboard-tab-2"
               aria-controls="dashboard-tabpanel-2"
+              sx={{
+                fontSize: '1.1rem',
+                fontWeight: 500,
+                '&.Mui-selected': {
+                  background: 'linear-gradient(45deg, #f093fb, #f5576c)',
+                  backgroundClip: 'text',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                }
+              }}
+            />
+            <Tab
+              icon={<Settings />}
+              label="Platforms"
+              id="dashboard-tab-3"
+              aria-controls="dashboard-tabpanel-3"
               sx={{
                 fontSize: '1.1rem',
                 fontWeight: 500,
@@ -262,6 +280,10 @@ export const Dashboard: React.FC = () => {
           </TabPanel>
 
           <TabPanel value={tabValue} index={2}>
+            <AnalyticsDashboard />
+          </TabPanel>
+
+          <TabPanel value={tabValue} index={3}>
             <PlatformConnections />
           </TabPanel>
         </Paper>
