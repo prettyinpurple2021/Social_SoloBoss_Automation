@@ -8,6 +8,7 @@ import bloggerRoutes from './routes/blogger';
 import settingsRoutes from './routes/settings';
 import healthRoutes from './routes/health';
 import securityRoutes from './routes/security';
+import performanceRoutes from './routes/performance';
 import { createSoloBossRoutes } from './routes/soloboss';
 import { TokenRefreshService } from './services/TokenRefreshService';
 import { schedulerService } from './services/SchedulerService';
@@ -29,6 +30,11 @@ import {
   securityMonitoring,
   requestTimeout
 } from './middleware/security';
+import { 
+  performanceMiddleware, 
+  requestTimeoutMiddleware, 
+  resourceMonitoringMiddleware 
+} from './middleware/performance';
 import { 
   generalRateLimit, 
   authRateLimit, 
@@ -73,6 +79,10 @@ app.use(requestIdMiddleware);
 app.use(correlationMiddleware);
 app.use(tracingMiddleware);
 
+// Performance monitoring middleware
+app.use(performanceMiddleware({ enableLoadBalancing: true }));
+app.use(resourceMonitoringMiddleware());
+
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -89,6 +99,9 @@ app.use('/health', healthCheckRateLimit, healthRoutes);
 
 // Security routes (for CSRF tokens, etc.)
 app.use('/api/security', generalRateLimit, securityRoutes);
+
+// Performance monitoring routes
+app.use('/api/performance', generalRateLimit, performanceRoutes);
 
 // Authentication routes (with strict rate limiting)
 app.use('/api/auth', authRateLimit, authRoutes);

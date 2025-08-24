@@ -100,8 +100,8 @@ export class MonitoringService extends EventEmitter {
   private alerts: Map<string, Alert> = new Map();
   private alertRules: Map<string, AlertRule> = new Map();
   private metricsRetentionPeriod = 24 * 60 * 60 * 1000; // 24 hours
-  private cleanupInterval: NodeJS.Timeout;
-  private metricsCollectionInterval: NodeJS.Timeout;
+  private cleanupInterval!: NodeJS.Timeout;
+  private metricsCollectionInterval!: NodeJS.Timeout;
 
   // Application metrics counters
   private requestCount = 0;
