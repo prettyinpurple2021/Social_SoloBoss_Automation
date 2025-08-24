@@ -6,6 +6,8 @@ import { circuitBreakerService, CircuitBreakers } from './CircuitBreakerService'
 import { loggerService } from './LoggerService';
 import { monitoringService } from './MonitoringService';
 import { traceExternalCall, traced } from '../middleware/tracing';
+import { ContentTransformationService, TransformationContext } from './ContentTransformationService';
+import { IntegrationErrorService, IntegrationErrorType } from './IntegrationErrorService';
 import { 
   BloggerPost, 
   BloggerMonitorResult, 
@@ -21,6 +23,9 @@ export class BloggerService {
       'User-Agent': 'Social Media Automation Platform/1.0'
     }
   });
+
+  private static transformationService = ContentTransformationService.getInstance();
+  private static errorService = IntegrationErrorService.getInstance();
 
   /**
    * Create or update blogger integration for a user
@@ -203,63 +208,138 @@ export class BloggerService {
   }
 
   /**
-   * Process a blog post and generate social media posts
+   * Process a blog post and generate social media posts using templates
    */
   static async processBlogPost(
     integration: BloggerIntegrationRow, 
     blogPost: BloggerPost
   ): Promise<void> {
     try {
-      // Generate social media content from blog post
-      const socialPosts = this.generateSocialMediaPosts(integration, blogPost);
+      // Generate social media content from blog post using transformation service
+      const socialPosts = await this.generateSocialMediaPostsWithTemplates(integration, blogPost);
 
       for (const postData of socialPosts) {
         // Create the post in the system
         const createdPost = await PostService.createPost(integration.user_id, postData);
         
-        console.log(`Created social media post ${createdPost.id} from blog post: ${blogPost.title}`);
+        loggerService.info(`Created social media post from blog post`, {
+          postId: createdPost.id,
+          blogPostTitle: blogPost.title,
+          userId: integration.user_id,
+          platforms: postData.platforms
+        });
       }
     } catch (error) {
-      console.error(`Error processing blog post ${blogPost.title}:`, error);
+      await this.errorService.logError(
+        integration.user_id,
+        'blogger',
+        IntegrationErrorType.CONTENT_PROCESSING,
+        error as Error,
+        {
+          blogPostId: blogPost.id,
+          blogPostTitle: blogPost.title,
+          integrationId: integration.id
+        }
+      );
+      
+      loggerService.error(`Error processing blog post ${blogPost.title}`, error as Error, {
+        userId: integration.user_id,
+        blogPostId: blogPost.id
+      });
+      
       throw error;
     }
   }
 
   /**
-   * Generate social media posts from a blog post
+   * Generate social media posts from a blog post using templates and transformation service
    */
-  private static generateSocialMediaPosts(
+  private static async generateSocialMediaPostsWithTemplates(
     integration: BloggerIntegrationRow, 
     blogPost: BloggerPost
-  ): PostData[] {
+  ): Promise<PostData[]> {
     const posts: PostData[] = [];
     
-    // Generate different content variations for different platforms
+    // Get platforms from integration settings
     const platforms = integration.default_platforms as Platform[];
-    
-    if (platforms.length === 0) {
-      // Default to all platforms if none specified
-      platforms.push(Platform.FACEBOOK, Platform.X, Platform.INSTAGRAM, Platform.PINTEREST);
+    const targetPlatforms = platforms.length > 0 ? platforms : 
+      [Platform.FACEBOOK, Platform.X, Platform.INSTAGRAM, Platform.PINTEREST];
+
+    try {
+      // Generate platform-specific content using templates
+      for (const platform of targetPlatforms) {
+        const transformationContext: TransformationContext = {
+          userId: integration.user_id,
+          platform,
+          sourceType: 'blogger',
+          sourceData: blogPost,
+          customVariables: {
+            blog_url: integration.blog_url,
+            auto_approve: integration.auto_approve.toString()
+          }
+        };
+
+        const transformationResult = await this.transformationService.transformContent(transformationContext);
+
+        const postData: PostData = {
+          content: transformationResult.content,
+          hashtags: [...transformationResult.hashtags, ...integration.custom_hashtags],
+          images: transformationResult.images,
+          platforms: [platform],
+          source: PostSource.BLOGGER,
+          scheduledTime: integration.auto_approve ? new Date() : undefined,
+          platformSpecificContent: {
+            [platform]: {
+              content: transformationResult.content,
+              images: transformationResult.images,
+              hashtags: transformationResult.hashtags,
+              metadata: transformationResult.metadata
+            }
+          }
+        };
+
+        posts.push(postData);
+      }
+
+      // If no platform-specific posts were generated, create a fallback post
+      if (posts.length === 0) {
+        const fallbackPost = this.generateFallbackPost(integration, blogPost, targetPlatforms);
+        posts.push(fallbackPost);
+      }
+
+    } catch (error) {
+      loggerService.warn('Template transformation failed, using fallback generation', {
+        userId: integration.user_id,
+        blogPostId: blogPost.id,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+
+      // Fallback to original generation method
+      const fallbackPost = this.generateFallbackPost(integration, blogPost, targetPlatforms);
+      posts.push(fallbackPost);
     }
 
-    // Create a base post that works for all platforms
+    return posts;
+  }
+
+  /**
+   * Generate fallback post when template transformation fails
+   */
+  private static generateFallbackPost(
+    integration: BloggerIntegrationRow,
+    blogPost: BloggerPost,
+    platforms: Platform[]
+  ): PostData {
     const baseContent = this.generateBaseContent(blogPost);
     const hashtags = this.generateHashtags(integration, blogPost);
 
-    // Create post for all specified platforms
-    const postData: PostData = {
+    return {
       content: baseContent,
       hashtags,
       platforms,
       source: PostSource.BLOGGER,
-      // Schedule for immediate posting if auto-approve is enabled
-      // Otherwise, leave as draft for review
       scheduledTime: integration.auto_approve ? new Date() : undefined
     };
-
-    posts.push(postData);
-
-    return posts;
   }
 
   /**

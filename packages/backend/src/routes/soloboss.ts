@@ -250,19 +250,27 @@ export function createSoloBossRoutes(db: Pool): Router {
         });
       }
 
-      // Verify webhook signature
-      const rawBody = JSON.stringify(req.body);
-      const isValidSignature = await soloBossService.verifyWebhookSignature(
-        rawBody, 
-        payload.signature, 
+      // Enhanced webhook validation
+      const webhookPayload = {
+        headers: req.headers as Record<string, string>,
+        body: req.body,
+        rawBody: JSON.stringify(req.body),
+        timestamp: Date.now()
+      };
+
+      const validationResult = await soloBossService.verifyWebhookSignature(
+        webhookPayload,
         payload.userId
       );
 
-      if (!isValidSignature) {
-        return res.status(401).json({ error: 'Invalid webhook signature' });
+      if (!validationResult.isValid) {
+        return res.status(401).json({ 
+          error: 'Webhook validation failed',
+          details: validationResult.error
+        });
       }
 
-      // Process the content
+      // Process the content with enhanced error handling
       const processedContent = await soloBossService.processWebhookContent(payload);
       
       // Create draft posts for review

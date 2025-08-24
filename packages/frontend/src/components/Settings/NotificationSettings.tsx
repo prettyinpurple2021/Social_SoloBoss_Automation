@@ -4,7 +4,6 @@ import {
   Typography,
   Paper,
   Grid,
-  FormControlLabel,
   Switch,
   TextField,
   Button,
@@ -18,7 +17,6 @@ import {
 } from '@mui/material';
 import {
   Email,
-  Notifications,
   Error,
   Warning,
   Assessment,

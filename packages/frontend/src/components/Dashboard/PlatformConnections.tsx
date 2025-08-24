@@ -108,7 +108,7 @@ export const PlatformConnections: React.FC<PlatformConnectionsProps> = ({
             }
         } catch (error) {
             console.error('Connection failed:', error);
-            setError(error instanceof Error ? error.message : 'Failed to connect platform');
+            setError(String(error));
         } finally {
             setIsConnecting(false);
             setSelectedPlatform(null);

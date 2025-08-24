@@ -27,6 +27,7 @@ import { CalendarView } from './CalendarView';
 import { PlatformConnections } from './PlatformConnections';
 import { AnalyticsDashboard } from './AnalyticsDashboard';
 import { PostForm } from './PostForm';
+import { useAuth } from '../../contexts/AuthContext';
 
 
 interface TabPanelProps {
@@ -55,6 +56,7 @@ export const Dashboard: React.FC = () => {
   const [tabValue, setTabValue] = useState(0);
   const [showPostForm, setShowPostForm] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const { user, logout } = useAuth();
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
@@ -158,9 +160,15 @@ export const Dashboard: React.FC = () => {
             open={Boolean(anchorEl)}
             onClose={handleMenuClose}
           >
-            <MenuItem onClick={handleMenuClose}>Profile</MenuItem>
-            <MenuItem onClick={handleMenuClose}>Settings</MenuItem>
-            <MenuItem onClick={handleMenuClose}>Logout</MenuItem>
+            <MenuItem onClick={handleMenuClose}>
+              Profile ({user?.name})
+            </MenuItem>
+            <MenuItem onClick={() => { handleMenuClose(); window.location.href = '/settings'; }}>
+              Settings
+            </MenuItem>
+            <MenuItem onClick={() => { handleMenuClose(); logout(); }}>
+              Logout
+            </MenuItem>
           </Menu>
         </Toolbar>
       </AppBar>

@@ -9,20 +9,18 @@ import {
   MenuItem,
   FormControl,
   InputLabel,
-  Paper,
   Chip,
   Avatar,
   Stack,
   LinearProgress,
-  Divider
+  Divider,
+  Alert
 } from '@mui/material';
 import {
   TrendingUp,
-  TrendingDown,
   Visibility,
   ThumbUp,
   Share,
-  Comment,
   Facebook,
   Instagram,
   Pinterest,
@@ -148,7 +146,7 @@ export const AnalyticsDashboard: React.FC = () => {
           <Select
             value={timeRange}
             label="Time Range"
-            onChange={(e) => setTimeRange(e.target.value)}
+            onChange={(e) => setTimeRange(e.target.value as '7d' | '30d' | '90d')}
           >
             <MenuItem value="7d">Last 7 days</MenuItem>
             <MenuItem value="30d">Last 30 days</MenuItem>

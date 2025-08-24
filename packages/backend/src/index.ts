@@ -9,11 +9,14 @@ import settingsRoutes from './routes/settings';
 import healthRoutes from './routes/health';
 import securityRoutes from './routes/security';
 import performanceRoutes from './routes/performance';
+import templatesRoutes from './routes/templates';
+import integrationErrorsRoutes from './routes/integration-errors';
 import { createSoloBossRoutes } from './routes/soloboss';
 import { TokenRefreshService } from './services/TokenRefreshService';
 import { schedulerService } from './services/SchedulerService';
 import { BloggerMonitorService } from './services/BloggerMonitorService';
 import { retryQueueService } from './services/RetryQueueService';
+import { IntegrationErrorRecoveryService } from './services/IntegrationErrorRecoveryService';
 import { loggerService } from './services/LoggerService';
 import { monitoringService } from './services/MonitoringService';
 import { ErrorHandlerMiddleware, requestIdMiddleware, notFoundHandler } from './middleware/errorHandler';
@@ -118,8 +121,14 @@ app.use('/api/settings', settingsRoutes);
 // Blogger integration routes (webhook rate limiting)
 app.use('/api/blogger', webhookRateLimit, bloggerRoutes);
 
-// SoloBoss integration routes (webhook rate limiting) - temporarily disabled
-// app.use('/api/soloboss', webhookRateLimit, createSoloBossRoutes(db.getPool()));
+// SoloBoss integration routes (webhook rate limiting)
+app.use('/api/soloboss', webhookRateLimit, createSoloBossRoutes(db.getPool()));
+
+// Content templates routes
+app.use('/api/templates', generalRateLimit, templatesRoutes);
+
+// Integration errors routes
+app.use('/api/integration-errors', generalRateLimit, integrationErrorsRoutes);
 
 // 404 handler (must be before error handler)
 app.use('*', notFoundHandler);
@@ -153,6 +162,10 @@ app.listen(PORT, async () => {
     retryQueueService.start();
     loggerService.info('Retry queue service started');
     
+    // Start integration error recovery service
+    IntegrationErrorRecoveryService.getInstance().start(5); // Run every 5 minutes
+    loggerService.info('Integration error recovery service started');
+    
     // Initialize monitoring service
     loggerService.info('Monitoring service initialized');
     
@@ -175,6 +188,7 @@ process.on('SIGTERM', async () => {
     await schedulerService.stop();
     BloggerMonitorService.stop();
     retryQueueService.stop();
+    IntegrationErrorRecoveryService.getInstance().stop();
     monitoringService.shutdown();
     await redis.disconnect();
     await loggerService.flush();
@@ -193,6 +207,7 @@ process.on('SIGINT', async () => {
     await schedulerService.stop();
     BloggerMonitorService.stop();
     retryQueueService.stop();
+    IntegrationErrorRecoveryService.getInstance().stop();
     monitoringService.shutdown();
     await redis.disconnect();
     await loggerService.flush();
