@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Typography,
@@ -17,7 +17,9 @@ import {
   List,
   ListItem,
   ListItemText,
-  ListItemAvatar
+  ListItemAvatar,
+  Alert,
+  Snackbar
 } from '@mui/material';
 import {
   ChevronLeft,
@@ -44,6 +46,7 @@ dayjs.extend(isSameOrAfter);
 interface CalendarViewProps {
   posts?: Post[];
   onPostClick?: (post: Post) => void;
+  onPostReschedule?: (postId: string, newDate: Date) => Promise<void>;
 }
 
 const platformIcons = {
@@ -69,12 +72,21 @@ const statusIcons = {
 };
 
 export const CalendarView: React.FC<CalendarViewProps> = ({
-  posts = []
+  posts = [],
+  onPostReschedule
 }) => {
   const [currentDate, setCurrentDate] = useState<Dayjs>(dayjs());
   const [selectedDate, setSelectedDate] = useState<Dayjs | null>(null);
   const [selectedDatePosts, setSelectedDatePosts] = useState<Post[]>([]);
   const [mockPosts, setMockPosts] = useState<Post[]>([]);
+  const [draggedPost, setDraggedPost] = useState<Post | null>(null);
+  const [dragOverDate, setDragOverDate] = useState<Dayjs | null>(null);
+  const [conflicts, setConflicts] = useState<string[]>([]);
+  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'warning' }>({
+    open: false,
+    message: '',
+    severity: 'success'
+  });
 
   // Mock data for demonstration
   useEffect(() => {
@@ -171,6 +183,83 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     setSelectedDatePosts([]);
   };
 
+  const handleDragStart = useCallback((e: React.DragEvent, post: Post) => {
+    setDraggedPost(post);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', post.id);
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent, date: Dayjs) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverDate(date);
+    
+    // Check for potential conflicts
+    if (draggedPost) {
+      const postsOnDate = getPostsForDate(date);
+      const hasConflicts = postsOnDate.some(p => 
+        p.id !== draggedPost.id && 
+        p.platforms.some(platform => draggedPost.platforms.includes(platform))
+      );
+      
+      if (hasConflicts) {
+        setConflicts([date.format('YYYY-MM-DD')]);
+      } else {
+        setConflicts([]);
+      }
+    }
+  }, [draggedPost]);
+
+  const handleDragLeave = useCallback(() => {
+    setDragOverDate(null);
+    setConflicts([]);
+  }, []);
+
+  const handleDrop = useCallback(async (e: React.DragEvent, date: Dayjs) => {
+    e.preventDefault();
+    setDragOverDate(null);
+    setConflicts([]);
+    
+    if (!draggedPost || !onPostReschedule) {
+      setDraggedPost(null);
+      return;
+    }
+
+    const originalDate = dayjs(draggedPost.scheduledTime);
+    if (date.format('YYYY-MM-DD') === originalDate.format('YYYY-MM-DD')) {
+      setDraggedPost(null);
+      return;
+    }
+
+    try {
+      // Keep the same time, just change the date
+      const newDateTime = date
+        .hour(originalDate.hour())
+        .minute(originalDate.minute())
+        .second(originalDate.second());
+
+      await onPostReschedule(draggedPost.id, newDateTime.toDate());
+      
+      setSnackbar({
+        open: true,
+        message: `Post rescheduled to ${newDateTime.format('MMM D, YYYY [at] h:mm A')}`,
+        severity: 'success'
+      });
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: 'Failed to reschedule post',
+        severity: 'error'
+      });
+    } finally {
+      setDraggedPost(null);
+    }
+  }, [draggedPost, onPostReschedule]);
+
+  const handleCloseSnackbar = () => {
+    setSnackbar(prev => ({ ...prev, open: false }));
+  };
+
   const renderCalendarDays = () => {
     const startOfMonth = currentDate.startOf('month');
     const endOfMonth = currentDate.endOf('month');
@@ -190,6 +279,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       const isCurrentMonth = date.format('YYYY-MM') === currentDate.format('YYYY-MM');
       const isToday = date.format('YYYY-MM-DD') === dayjs().format('YYYY-MM-DD');
 
+      const isDragOver = dragOverDate?.format('YYYY-MM-DD') === date.format('YYYY-MM-DD');
+      const hasConflict = conflicts.includes(date.format('YYYY-MM-DD'));
+
       return (
         <Grid item xs key={date.format('YYYY-MM-DD')}>
           <Card
@@ -197,13 +289,23 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               minHeight: 120,
               cursor: postsForDate.length > 0 ? 'pointer' : 'default',
               bgcolor: isCurrentMonth ? 'background.paper' : 'action.hover',
-              border: isToday ? 2 : 0,
-              borderColor: 'primary.main',
+              border: isToday ? 2 : isDragOver ? 2 : 0,
+              borderColor: isToday ? 'primary.main' : 
+                          hasConflict ? 'warning.main' :
+                          isDragOver ? 'success.main' : 'transparent',
               '&:hover': {
                 bgcolor: postsForDate.length > 0 ? 'action.hover' : undefined
-              }
+              },
+              transition: 'all 0.2s ease-in-out',
+              ...(isDragOver && {
+                transform: 'scale(1.02)',
+                boxShadow: 3
+              })
             }}
             onClick={() => handleDateClick(date)}
+            onDragOver={(e) => handleDragOver(e, date)}
+            onDragLeave={handleDragLeave}
+            onDrop={(e) => handleDrop(e, date)}
           >
             <CardContent sx={{ p: 1, '&:last-child': { pb: 1 } }}>
               <Typography
@@ -221,6 +323,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 {postsForDate.slice(0, 3).map((post) => (
                   <Box
                     key={post.id}
+                    draggable={post.status === PostStatus.SCHEDULED}
+                    onDragStart={(e) => handleDragStart(e, post)}
                     sx={{
                       display: 'flex',
                       alignItems: 'center',
@@ -228,7 +332,16 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                       p: 0.5,
                       bgcolor: 'background.default',
                       borderRadius: 0.5,
-                      fontSize: '0.75rem'
+                      fontSize: '0.75rem',
+                      cursor: post.status === PostStatus.SCHEDULED ? 'grab' : 'default',
+                      '&:active': {
+                        cursor: post.status === PostStatus.SCHEDULED ? 'grabbing' : 'default'
+                      },
+                      '&:hover': {
+                        bgcolor: post.status === PostStatus.SCHEDULED ? 'action.hover' : 'background.default'
+                      },
+                      opacity: draggedPost?.id === post.id ? 0.5 : 1,
+                      transition: 'all 0.2s ease-in-out'
                     }}
                   >
                     {statusIcons[post.status]}
@@ -390,6 +503,52 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           <Button onClick={handleCloseDialog}>Close</Button>
         </DialogActions>
       </Dialog>
+
+      {/* Drag and drop notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={4000}
+        onClose={handleCloseSnackbar}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert 
+          onClose={handleCloseSnackbar} 
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
+
+      {/* Drag over indicator */}
+      {draggedPost && (
+        <Box
+          sx={{
+            position: 'fixed',
+            top: 16,
+            right: 16,
+            zIndex: 9999,
+            p: 2,
+            bgcolor: 'background.paper',
+            borderRadius: 1,
+            boxShadow: 3,
+            border: 1,
+            borderColor: 'divider'
+          }}
+        >
+          <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Avatar sx={{ width: 24, height: 24, bgcolor: 'primary.main' }}>
+              {statusIcons[draggedPost.status]}
+            </Avatar>
+            Dragging: {draggedPost.content.substring(0, 30)}...
+          </Typography>
+          {conflicts.length > 0 && (
+            <Alert severity="warning" sx={{ mt: 1, fontSize: '0.75rem' }}>
+              Scheduling conflict detected!
+            </Alert>
+          )}
+        </Box>
+      )}
     </Box>
   );
 };

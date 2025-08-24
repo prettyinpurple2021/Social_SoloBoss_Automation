@@ -11,6 +11,9 @@ import securityRoutes from './routes/security';
 import performanceRoutes from './routes/performance';
 import templatesRoutes from './routes/templates';
 import integrationErrorsRoutes from './routes/integration-errors';
+import analyticsRoutes from './routes/analytics';
+import schedulingRoutes from './routes/scheduling';
+import categoriesRoutes from './routes/categories';
 import { createSoloBossRoutes } from './routes/soloboss';
 import { TokenRefreshService } from './services/TokenRefreshService';
 import { schedulerService } from './services/SchedulerService';
@@ -129,6 +132,15 @@ app.use('/api/templates', generalRateLimit, templatesRoutes);
 
 // Integration errors routes
 app.use('/api/integration-errors', generalRateLimit, integrationErrorsRoutes);
+
+// Analytics routes
+app.use('/api/analytics', generalRateLimit, analyticsRoutes);
+
+// Advanced scheduling routes
+app.use('/api/scheduling', generalRateLimit, schedulingRoutes);
+
+// Categories and tags routes
+app.use('/api/categories', generalRateLimit, categoriesRoutes);
 
 // 404 handler (must be before error handler)
 app.use('*', notFoundHandler);

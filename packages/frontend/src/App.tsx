@@ -6,6 +6,10 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { Login } from './components/Auth/Login';
 import { Dashboard } from './components/Dashboard/Dashboard';
 import { Settings } from './components/Settings/Settings';
+import { PWAUpdateNotification } from './components/PWA/PWAUpdateNotification';
+import { MobileNavigation, useMobileNavigation } from './components/Mobile/MobileNavigation';
+import { MobilePostEditor } from './components/Mobile/MobilePostEditor';
+import { useResponsive } from './hooks/useResponsive';
 
 const theme = createTheme({
   palette: {
@@ -29,6 +33,15 @@ const theme = createTheme({
     text: {
       primary: '#ffffff',
       secondary: '#e0e0e0',
+    },
+  },
+  breakpoints: {
+    values: {
+      xs: 0,
+      sm: 600,
+      md: 900,
+      lg: 1200,
+      xl: 1536,
     },
   },
   typography: {
@@ -202,6 +215,8 @@ const theme = createTheme({
             background: 'rgba(255, 255, 255, 0.1)',
             backdropFilter: 'blur(10px)',
             color: '#ffffff',
+            fontSize: '1rem',
+            minHeight: '44px', // Touch-friendly minimum height
             '&:hover': {
               background: 'rgba(255, 255, 255, 0.15)',
             },
@@ -228,11 +243,57 @@ const theme = createTheme({
         },
       },
     },
+    MuiFab: {
+      styleOverrides: {
+        root: {
+          minHeight: '56px',
+          minWidth: '56px',
+          '&:active': {
+            transform: 'scale(0.95)',
+          },
+        },
+      },
+    },
+    MuiIconButton: {
+      styleOverrides: {
+        root: {
+          minHeight: '44px',
+          minWidth: '44px',
+          '&:active': {
+            transform: 'scale(0.95)',
+          },
+        },
+      },
+    },
+    MuiChip: {
+      styleOverrides: {
+        root: {
+          minHeight: '36px',
+          fontSize: '0.9rem',
+          '&:active': {
+            transform: 'scale(0.95)',
+          },
+        },
+      },
+    },
   },
 });
 
 const AppContent: React.FC = () => {
   const { isAuthenticated, isLoading } = useAuth();
+  const { isMobile } = useResponsive();
+  const {
+    isCreatePostOpen,
+    notificationCount,
+    handleCreatePost,
+    handleCloseCreatePost
+  } = useMobileNavigation();
+
+  const handleSavePost = async (postData: any) => {
+    // TODO: Implement post saving logic
+    console.log('Saving post:', postData);
+    // This would typically call an API to save the post
+  };
 
   if (isLoading) {
     return (
@@ -256,11 +317,39 @@ const AppContent: React.FC = () => {
 
   return (
     <Router>
-      <Routes>
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/settings" element={<Settings />} />
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-      </Routes>
+      {/* PWA Update Notifications */}
+      <PWAUpdateNotification />
+      
+      {/* Mobile Navigation */}
+      {isMobile && (
+        <MobileNavigation
+          onCreatePost={handleCreatePost}
+          notificationCount={notificationCount}
+        />
+      )}
+
+      {/* Main Content */}
+      <Box sx={{ 
+        pt: isMobile ? 8 : 0, // Account for mobile app bar
+        pb: isMobile ? 7 : 0  // Account for mobile bottom navigation
+      }}>
+        <Routes>
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/settings" element={<Settings />} />
+          <Route path="/analytics" element={<div>Analytics Page (TODO)</div>} />
+          <Route path="/schedule" element={<div>Schedule Page (TODO)</div>} />
+          <Route path="/connections" element={<div>Connections Page (TODO)</div>} />
+          <Route path="/profile" element={<div>Profile Page (TODO)</div>} />
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        </Routes>
+      </Box>
+
+      {/* Mobile Post Editor */}
+      <MobilePostEditor
+        open={isCreatePostOpen}
+        onClose={handleCloseCreatePost}
+        onSave={handleSavePost}
+      />
     </Router>
   );
 };

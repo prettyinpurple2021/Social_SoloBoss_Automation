@@ -585,60 +585,355 @@ export class AdvancedAnalyticsService {
     return days[dayOfWeek] || 'Unknown';
   }
 
-  // Additional helper methods would be implemented here for:
-  // - getTopHashtags
-  // - getContentTypes
-  // - getOptimalContentLength
-  // - getBestPostingTimes
-  // - getAudienceActivity
-  // - getEngagementTrend
-  // - getHashtagTrends
-  // - getPlatformTrends
-  // - getTopPerformingPosts
-
   private async getTopHashtags(query: AnalyticsQuery, startDate: Date, endDate: Date) {
-    // Implementation for top hashtags analysis
-    return [];
+    const queryText = `
+      SELECT 
+        hashtag,
+        COUNT(*) as usage,
+        COALESCE(AVG(pa.metric_value), 0) as avg_engagement,
+        CASE 
+          WHEN COUNT(*) > LAG(COUNT(*)) OVER (ORDER BY hashtag) THEN 'up'
+          WHEN COUNT(*) < LAG(COUNT(*)) OVER (ORDER BY hashtag) THEN 'down'
+          ELSE 'stable'
+        END as trend
+      FROM posts p
+      CROSS JOIN LATERAL unnest(p.hashtags) as hashtag
+      LEFT JOIN platform_posts pp ON p.id = pp.post_id
+      LEFT JOIN post_analytics pa ON pp.id = pa.platform_post_id AND pa.metric_type = 'engagement_rate'
+      WHERE p.user_id = $1
+        AND p.status = $2
+        AND p.published_at BETWEEN $3 AND $4
+      GROUP BY hashtag
+      HAVING COUNT(*) >= 2
+      ORDER BY avg_engagement DESC, usage DESC
+      LIMIT 20
+    `;
+
+    const result = await db.query(queryText, [query.userId, PostStatus.PUBLISHED, startDate, endDate]);
+    
+    return result.rows.map(row => ({
+      hashtag: row.hashtag.replace('#', ''),
+      usage: parseInt(row.usage),
+      avgEngagement: parseFloat(row.avg_engagement),
+      trend: row.trend as 'up' | 'down' | 'stable'
+    }));
   }
 
   private async getContentTypes(query: AnalyticsQuery, startDate: Date, endDate: Date) {
-    // Implementation for content type analysis
-    return [];
+    const queryText = `
+      SELECT 
+        CASE 
+          WHEN array_length(p.images, 1) > 1 THEN 'carousel'
+          WHEN array_length(p.images, 1) = 1 THEN 'image'
+          WHEN p.content ~ 'http.*\\.(mp4|mov|avi)' THEN 'video'
+          ELSE 'text'
+        END as type,
+        COUNT(*) as count,
+        COALESCE(AVG(pa.metric_value), 0) as avg_engagement,
+        CASE 
+          WHEN COALESCE(AVG(pa.metric_value), 0) > 15 THEN 'high'
+          WHEN COALESCE(AVG(pa.metric_value), 0) > 5 THEN 'medium'
+          ELSE 'low'
+        END as performance
+      FROM posts p
+      LEFT JOIN platform_posts pp ON p.id = pp.post_id
+      LEFT JOIN post_analytics pa ON pp.id = pa.platform_post_id AND pa.metric_type = 'engagement_rate'
+      WHERE p.user_id = $1
+        AND p.status = $2
+        AND p.published_at BETWEEN $3 AND $4
+      GROUP BY type
+      ORDER BY avg_engagement DESC
+    `;
+
+    const result = await db.query(queryText, [query.userId, PostStatus.PUBLISHED, startDate, endDate]);
+    
+    return result.rows.map(row => ({
+      type: row.type as 'text' | 'image' | 'video' | 'carousel',
+      count: parseInt(row.count),
+      avgEngagement: parseFloat(row.avg_engagement),
+      performance: row.performance as 'high' | 'medium' | 'low'
+    }));
   }
 
   private async getOptimalContentLength(query: AnalyticsQuery, startDate: Date, endDate: Date) {
-    // Implementation for optimal content length analysis
-    return [];
+    const queryText = `
+      SELECT 
+        unnest(p.platforms) as platform,
+        PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY LENGTH(p.content)) as min_length,
+        PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY LENGTH(p.content)) as max_length,
+        COALESCE(AVG(pa.metric_value), 0) as avg_engagement
+      FROM posts p
+      LEFT JOIN platform_posts pp ON p.id = pp.post_id
+      LEFT JOIN post_analytics pa ON pp.id = pa.platform_post_id AND pa.metric_type = 'engagement_rate'
+      WHERE p.user_id = $1
+        AND p.status = $2
+        AND p.published_at BETWEEN $3 AND $4
+        AND pa.metric_value > 0
+      GROUP BY platform
+      ORDER BY avg_engagement DESC
+    `;
+
+    const result = await db.query(queryText, [query.userId, PostStatus.PUBLISHED, startDate, endDate]);
+    
+    return result.rows.map(row => ({
+      platform: row.platform,
+      minLength: Math.round(parseFloat(row.min_length)),
+      maxLength: Math.round(parseFloat(row.max_length)),
+      avgEngagement: parseFloat(row.avg_engagement)
+    }));
   }
 
   private async getBestPostingTimes(query: AnalyticsQuery, startDate: Date, endDate: Date) {
-    // Implementation for best posting times analysis
-    return [];
+    const queryText = `
+      SELECT 
+        unnest(p.platforms) as platform,
+        EXTRACT(DOW FROM p.published_at) as day_of_week,
+        EXTRACT(HOUR FROM p.published_at) as hour,
+        COALESCE(AVG(pa.metric_value), 0) as engagement_rate
+      FROM posts p
+      LEFT JOIN platform_posts pp ON p.id = pp.post_id
+      LEFT JOIN post_analytics pa ON pp.id = pa.platform_post_id AND pa.metric_type = 'engagement_rate'
+      WHERE p.user_id = $1
+        AND p.status = $2
+        AND p.published_at BETWEEN $3 AND $4
+      GROUP BY platform, day_of_week, hour
+      HAVING COUNT(*) >= 2
+      ORDER BY engagement_rate DESC
+      LIMIT 20
+    `;
+
+    const result = await db.query(queryText, [query.userId, PostStatus.PUBLISHED, startDate, endDate]);
+    
+    return result.rows.map(row => ({
+      platform: row.platform,
+      dayOfWeek: parseInt(row.day_of_week),
+      hour: parseInt(row.hour),
+      engagementRate: parseFloat(row.engagement_rate)
+    }));
   }
 
   private async getAudienceActivity(query: AnalyticsQuery, startDate: Date, endDate: Date) {
-    // Implementation for audience activity analysis
-    return [];
+    const queryText = `
+      SELECT 
+        unnest(p.platforms) as platform,
+        EXTRACT(HOUR FROM p.published_at) as hour,
+        COUNT(*) as activity_level
+      FROM posts p
+      WHERE p.user_id = $1
+        AND p.status = $2
+        AND p.published_at BETWEEN $3 AND $4
+      GROUP BY platform, hour
+      ORDER BY platform, hour
+    `;
+
+    const result = await db.query(queryText, [query.userId, PostStatus.PUBLISHED, startDate, endDate]);
+    
+    return result.rows.map(row => ({
+      platform: row.platform,
+      hour: parseInt(row.hour),
+      activityLevel: parseInt(row.activity_level)
+    }));
   }
 
   private async getEngagementTrend(query: AnalyticsQuery, startDate: Date, endDate: Date) {
-    // Implementation for engagement trend analysis
-    return [];
+    const queryText = `
+      SELECT 
+        DATE(p.published_at) as date,
+        COALESCE(SUM(CASE WHEN pa.metric_type IN ('likes', 'shares', 'comments') THEN pa.metric_value END), 0) as engagement,
+        COALESCE(SUM(CASE WHEN pa.metric_type = 'reach' THEN pa.metric_value END), 0) as reach,
+        COALESCE(SUM(CASE WHEN pa.metric_type = 'impressions' THEN pa.metric_value END), 0) as impressions,
+        COUNT(DISTINCT p.id) as posts
+      FROM posts p
+      LEFT JOIN platform_posts pp ON p.id = pp.post_id
+      LEFT JOIN post_analytics pa ON pp.id = pa.platform_post_id
+      WHERE p.user_id = $1
+        AND p.status = $2
+        AND p.published_at BETWEEN $3 AND $4
+      GROUP BY DATE(p.published_at)
+      ORDER BY date ASC
+    `;
+
+    const result = await db.query(queryText, [query.userId, PostStatus.PUBLISHED, startDate, endDate]);
+    
+    return result.rows.map(row => ({
+      date: row.date,
+      engagement: parseInt(row.engagement),
+      reach: parseInt(row.reach),
+      impressions: parseInt(row.impressions),
+      posts: parseInt(row.posts)
+    }));
   }
 
   private async getHashtagTrends(query: AnalyticsQuery, startDate: Date, endDate: Date) {
-    // Implementation for hashtag trends analysis
-    return [];
+    // Compare current period with previous period
+    const periodLength = endDate.getTime() - startDate.getTime();
+    const previousStartDate = new Date(startDate.getTime() - periodLength);
+
+    const queryText = `
+      WITH current_period AS (
+        SELECT 
+          hashtag,
+          COUNT(*) as current_usage
+        FROM posts p
+        CROSS JOIN LATERAL unnest(p.hashtags) as hashtag
+        WHERE p.user_id = $1
+          AND p.status = $2
+          AND p.published_at BETWEEN $3 AND $4
+        GROUP BY hashtag
+      ),
+      previous_period AS (
+        SELECT 
+          hashtag,
+          COUNT(*) as previous_usage
+        FROM posts p
+        CROSS JOIN LATERAL unnest(p.hashtags) as hashtag
+        WHERE p.user_id = $1
+          AND p.status = $2
+          AND p.published_at BETWEEN $5 AND $3
+        GROUP BY hashtag
+      )
+      SELECT 
+        COALESCE(c.hashtag, p.hashtag) as hashtag,
+        COALESCE(c.current_usage, 0) as current_usage,
+        COALESCE(p.previous_usage, 0) as previous_usage,
+        CASE 
+          WHEN p.previous_usage IS NULL OR p.previous_usage = 0 THEN 'rising'
+          WHEN c.current_usage IS NULL OR c.current_usage = 0 THEN 'declining'
+          WHEN c.current_usage > p.previous_usage THEN 'rising'
+          WHEN c.current_usage < p.previous_usage THEN 'declining'
+          ELSE 'stable'
+        END as trend,
+        CASE 
+          WHEN p.previous_usage IS NULL OR p.previous_usage = 0 THEN 100
+          ELSE ROUND(((c.current_usage - p.previous_usage)::float / p.previous_usage * 100)::numeric, 1)
+        END as change_percentage
+      FROM current_period c
+      FULL OUTER JOIN previous_period p ON c.hashtag = p.hashtag
+      WHERE COALESCE(c.current_usage, 0) + COALESCE(p.previous_usage, 0) >= 2
+      ORDER BY current_usage DESC NULLS LAST
+      LIMIT 15
+    `;
+
+    const result = await db.query(queryText, [
+      query.userId, PostStatus.PUBLISHED, startDate, endDate, previousStartDate
+    ]);
+    
+    return result.rows.map(row => ({
+      hashtag: row.hashtag.replace('#', ''),
+      trend: row.trend as 'rising' | 'declining' | 'stable',
+      changePercentage: parseFloat(row.change_percentage) || 0,
+      currentUsage: parseInt(row.current_usage) || 0
+    }));
   }
 
   private async getPlatformTrends(query: AnalyticsQuery, startDate: Date, endDate: Date) {
-    // Implementation for platform trends analysis
-    return [];
+    // Compare current period with previous period
+    const periodLength = endDate.getTime() - startDate.getTime();
+    const previousStartDate = new Date(startDate.getTime() - periodLength);
+
+    const queryText = `
+      WITH current_period AS (
+        SELECT 
+          unnest(p.platforms) as platform,
+          COALESCE(AVG(pa.metric_value), 0) as current_engagement
+        FROM posts p
+        LEFT JOIN platform_posts pp ON p.id = pp.post_id
+        LEFT JOIN post_analytics pa ON pp.id = pa.platform_post_id AND pa.metric_type = 'engagement_rate'
+        WHERE p.user_id = $1
+          AND p.status = $2
+          AND p.published_at BETWEEN $3 AND $4
+        GROUP BY platform
+      ),
+      previous_period AS (
+        SELECT 
+          unnest(p.platforms) as platform,
+          COALESCE(AVG(pa.metric_value), 0) as previous_engagement
+        FROM posts p
+        LEFT JOIN platform_posts pp ON p.id = pp.post_id
+        LEFT JOIN post_analytics pa ON pp.id = pa.platform_post_id AND pa.metric_type = 'engagement_rate'
+        WHERE p.user_id = $1
+          AND p.status = $2
+          AND p.published_at BETWEEN $5 AND $3
+        GROUP BY platform
+      )
+      SELECT 
+        c.platform,
+        c.current_engagement,
+        COALESCE(p.previous_engagement, 0) as previous_engagement,
+        CASE 
+          WHEN p.previous_engagement IS NULL OR p.previous_engagement = 0 THEN 'growing'
+          WHEN c.current_engagement > p.previous_engagement * 1.1 THEN 'growing'
+          WHEN c.current_engagement < p.previous_engagement * 0.9 THEN 'declining'
+          ELSE 'stable'
+        END as trend,
+        CASE 
+          WHEN p.previous_engagement IS NULL OR p.previous_engagement = 0 THEN 100
+          ELSE ROUND(((c.current_engagement - p.previous_engagement) / p.previous_engagement * 100)::numeric, 1)
+        END as change_percentage
+      FROM current_period c
+      LEFT JOIN previous_period p ON c.platform = p.platform
+      ORDER BY c.current_engagement DESC
+    `;
+
+    const result = await db.query(queryText, [
+      query.userId, PostStatus.PUBLISHED, startDate, endDate, previousStartDate
+    ]);
+    
+    return result.rows.map(row => ({
+      platform: row.platform,
+      trend: row.trend as 'growing' | 'declining' | 'stable',
+      changePercentage: parseFloat(row.change_percentage) || 0,
+      reason: this.generatePlatformTrendReason(row.trend, parseFloat(row.change_percentage) || 0)
+    }));
   }
 
   private async getTopPerformingPosts(query: AnalyticsQuery, startDate: Date, endDate: Date) {
-    // Implementation for top performing posts analysis
-    return [];
+    const queryText = `
+      SELECT 
+        p.id,
+        p.content,
+        unnest(p.platforms) as platform,
+        COALESCE(SUM(CASE WHEN pa.metric_type IN ('likes', 'shares', 'comments') THEN pa.metric_value END), 0) as engagement,
+        COALESCE(AVG(CASE WHEN pa.metric_type = 'engagement_rate' THEN pa.metric_value END), 0) as engagement_rate,
+        p.published_at,
+        p.metadata->'categories' as categories,
+        p.metadata->'tags' as tags
+      FROM posts p
+      LEFT JOIN platform_posts pp ON p.id = pp.post_id
+      LEFT JOIN post_analytics pa ON pp.id = pa.platform_post_id
+      WHERE p.user_id = $1
+        AND p.status = $2
+        AND p.published_at BETWEEN $3 AND $4
+      GROUP BY p.id, p.content, platform, p.published_at, p.metadata
+      ORDER BY engagement DESC, engagement_rate DESC
+      LIMIT 20
+    `;
+
+    const result = await db.query(queryText, [query.userId, PostStatus.PUBLISHED, startDate, endDate]);
+    
+    return result.rows.map(row => ({
+      id: row.id,
+      content: row.content,
+      platform: row.platform,
+      engagement: parseInt(row.engagement),
+      engagementRate: parseFloat(row.engagement_rate),
+      publishedAt: row.published_at,
+      categories: row.categories ? JSON.parse(row.categories) : [],
+      tags: row.tags ? JSON.parse(row.tags) : []
+    }));
+  }
+
+  private generatePlatformTrendReason(trend: string, changePercentage: number): string {
+    switch (trend) {
+      case 'growing':
+        return `Performance improved by ${changePercentage.toFixed(1)}% compared to previous period`;
+      case 'declining':
+        return `Performance declined by ${Math.abs(changePercentage).toFixed(1)}% compared to previous period`;
+      case 'stable':
+        return 'Performance remained consistent with previous period';
+      default:
+        return 'Insufficient data for trend analysis';
+    }
   }
 }
 
