@@ -7,8 +7,18 @@ yarn-error.log*
 # Build outputs
 dist/
 build/
-.terraform/
 *.tsbuildinfo
+
+# Terraform
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfplan
+*.tfplan.*
+.terraformrc
+terraform.rc
 
 # Environment variables
 .env
@@ -21,7 +31,6 @@ build/
 # IDE
 .vscode/
 .idea/
-.terraform/
 *.swp
 *.swo
 
