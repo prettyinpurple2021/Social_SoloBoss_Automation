@@ -2,6 +2,8 @@ import { Request, Response, NextFunction } from 'express';
 import { AppError, ErrorCode, ErrorSeverity } from '../types/errors';
 import { loggerService } from '../services/LoggerService';
 import { NotificationService } from '../services/NotificationService';
+import { ResponseUtils } from '../utils/responseUtils';
+import { ErrorCode as ApiErrorCode } from '../types/apiResponses';
 
 export interface ErrorResponse {
   success: false;
@@ -19,7 +21,7 @@ export interface ErrorResponse {
 
 export class ErrorHandlerMiddleware {
   /**
-   * Global error handling middleware
+   * Global error handling middleware with enhanced developer experience
    */
   static handle(err: Error, req: Request, res: Response, next: NextFunction): void {
     const requestId = req.headers['x-request-id'] as string || 'unknown';
@@ -64,30 +66,21 @@ export class ErrorHandlerMiddleware {
       });
     }
 
-    // Prepare error response
-    const errorResponse: ErrorResponse = {
-      success: false,
-      error: {
-        code: appError.code,
-        message: ErrorHandlerMiddleware.getPublicErrorMessage(appError),
-        retryable: appError.retryable,
-        retryAfter: ErrorHandlerMiddleware.getRetryAfter(appError),
-        guidance: ErrorHandlerMiddleware.getActionableGuidance(appError),
-      },
-      requestId,
-      timestamp: new Date().toISOString(),
-    };
-
-    // Add details for development environment
-    if (process.env.NODE_ENV === 'development') {
-      errorResponse.error.details = {
+    // Map AppError to ApiErrorCode for consistent responses
+    const apiErrorCode = ErrorHandlerMiddleware.mapToApiErrorCode(appError.code);
+    
+    // Use enhanced response utility with developer-friendly features
+    const customMessage = ErrorHandlerMiddleware.getPublicErrorMessage(appError);
+    const details = {
+      guidance: ErrorHandlerMiddleware.getActionableGuidance(appError),
+      ...(process.env.NODE_ENV === 'development' && {
         stack: appError.stack,
         context: appError.context,
-      };
-    }
+        originalError: err.message
+      })
+    };
 
-    // Send error response
-    res.status(appError.statusCode).json(errorResponse);
+    ResponseUtils.error(res, apiErrorCode, customMessage, details);
   }
 
   /**
@@ -323,6 +316,42 @@ export class ErrorHandlerMiddleware {
   }
 
   /**
+   * Map internal error codes to API error codes for consistent responses
+   */
+  private static mapToApiErrorCode(errorCode: string): ApiErrorCode {
+    const mapping: Record<string, ApiErrorCode> = {
+      [ErrorCode.UNAUTHORIZED]: ApiErrorCode.INVALID_TOKEN,
+      [ErrorCode.TOKEN_EXPIRED]: ApiErrorCode.TOKEN_EXPIRED,
+      [ErrorCode.FORBIDDEN]: ApiErrorCode.INSUFFICIENT_PERMISSIONS,
+      [ErrorCode.INVALID_CREDENTIALS]: ApiErrorCode.INVALID_TOKEN,
+      [ErrorCode.VALIDATION_ERROR]: ApiErrorCode.VALIDATION_ERROR,
+      [ErrorCode.INVALID_INPUT]: ApiErrorCode.VALIDATION_ERROR,
+      [ErrorCode.MISSING_REQUIRED_FIELD]: ApiErrorCode.MISSING_REQUIRED_FIELD,
+      [ErrorCode.POST_NOT_FOUND]: ApiErrorCode.RESOURCE_NOT_FOUND,
+      [ErrorCode.POST_ALREADY_PUBLISHED]: ApiErrorCode.RESOURCE_CONFLICT,
+      [ErrorCode.POST_SCHEDULING_FAILED]: ApiErrorCode.POST_SCHEDULING_FAILED,
+      [ErrorCode.POST_PUBLISHING_FAILED]: ApiErrorCode.PLATFORM_API_ERROR,
+      [ErrorCode.PLATFORM_RATE_LIMIT]: ApiErrorCode.RATE_LIMIT_EXCEEDED,
+      [ErrorCode.PLATFORM_AUTHENTICATION_FAILED]: ApiErrorCode.PLATFORM_CONNECTION_FAILED,
+      [ErrorCode.PLATFORM_CONTENT_REJECTED]: ApiErrorCode.PLATFORM_API_ERROR,
+      [ErrorCode.PLATFORM_SERVICE_UNAVAILABLE]: ApiErrorCode.PLATFORM_UNAVAILABLE,
+      [ErrorCode.BLOGGER_CONNECTION_FAILED]: ApiErrorCode.PLATFORM_CONNECTION_FAILED,
+      [ErrorCode.SOLOBOSS_CONNECTION_FAILED]: ApiErrorCode.PLATFORM_CONNECTION_FAILED,
+      [ErrorCode.OAUTH_FLOW_FAILED]: ApiErrorCode.OAUTH_ERROR,
+      [ErrorCode.DATABASE_ERROR]: ApiErrorCode.DATABASE_ERROR,
+      [ErrorCode.REDIS_ERROR]: ApiErrorCode.DATABASE_ERROR,
+      [ErrorCode.NETWORK_ERROR]: ApiErrorCode.NETWORK_ERROR,
+      [ErrorCode.SERVICE_UNAVAILABLE]: ApiErrorCode.SERVICE_UNAVAILABLE,
+      [ErrorCode.FILE_UPLOAD_FAILED]: ApiErrorCode.VALIDATION_ERROR,
+      [ErrorCode.FILE_TOO_LARGE]: ApiErrorCode.VALIDATION_ERROR,
+      [ErrorCode.INVALID_FILE_TYPE]: ApiErrorCode.VALIDATION_ERROR,
+      [ErrorCode.INTERNAL_SERVER_ERROR]: ApiErrorCode.INTERNAL_SERVER_ERROR
+    };
+
+    return mapping[errorCode] || ApiErrorCode.INTERNAL_SERVER_ERROR;
+  }
+
+  /**
    * Async error wrapper for route handlers
    */
   static asyncHandler(fn: Function) {
@@ -333,22 +362,14 @@ export class ErrorHandlerMiddleware {
 }
 
 /**
- * 404 Not Found handler
+ * Enhanced 404 Not Found handler with developer-friendly response
  */
 export const notFoundHandler = (req: Request, res: Response, next: NextFunction): void => {
-  const error = new AppError(
-    `Route ${req.method} ${req.path} not found`,
-    ErrorCode.VALIDATION_ERROR,
-    404,
-    ErrorSeverity.LOW,
-    false,
-    {
-      method: req.method,
-      path: req.path,
-    }
+  ResponseUtils.notFound(
+    res,
+    'API Endpoint',
+    `The endpoint ${req.method} ${req.path} was not found. Check the API documentation for available endpoints.`
   );
-
-  next(error);
 };
 
 /**

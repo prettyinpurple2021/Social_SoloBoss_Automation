@@ -1,0 +1,56 @@
+{
+  "name": "@sma/sdk",
+  "version": "1.0.0",
+  "description": "Official TypeScript/JavaScript SDK for Social Media Automation Platform",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist/**/*",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "lint": "eslint src --ext .ts",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "social-media",
+    "automation",
+    "api",
+    "sdk",
+    "typescript",
+    "javascript",
+    "facebook",
+    "instagram",
+    "pinterest",
+    "twitter"
+  ],
+  "author": "Social Media Automation Platform",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sma-platform/sdk-typescript.git"
+  },
+  "bugs": {
+    "url": "https://github.com/sma-platform/sdk-typescript/issues"
+  },
+  "homepage": "https://docs.sma-platform.com/sdks/typescript",
+  "dependencies": {
+    "axios": "^1.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.0.0",
+    "jest": "^29.5.0",
+    "typescript": "^5.1.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}

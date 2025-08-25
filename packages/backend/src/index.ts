@@ -18,7 +18,12 @@ import contentApprovalRoutes from './routes/content-approval';
 import contentVersioningRoutes from './routes/content-versioning';
 import contentCalendarRoutes from './routes/content-calendar';
 import { createSoloBossRoutes } from './routes/soloboss';
+import sandboxRoutes from './routes/sandbox';
+import developerRoutes from './routes/developer';
+import { setupSwagger } from './docs/swagger';
 import { TokenRefreshService } from './services/TokenRefreshService';
+import { sandboxMiddleware } from './services/SandboxService';
+import { apiAnalyticsMiddleware } from './services/ApiAnalyticsService';
 import { schedulerService } from './services/SchedulerService';
 import { BloggerMonitorService } from './services/BloggerMonitorService';
 import { retryQueueService } from './services/RetryQueueService';
@@ -39,6 +44,7 @@ import {
   securityMonitoring,
   requestTimeout
 } from './middleware/security';
+import { ResponseUtils } from './utils/responseUtils';
 import { 
   performanceMiddleware, 
   requestTimeoutMiddleware, 
@@ -88,6 +94,15 @@ app.use(requestIdMiddleware);
 app.use(correlationMiddleware);
 app.use(tracingMiddleware);
 
+// Response time tracking for enhanced API analytics
+app.use(ResponseUtils.responseTimeMiddleware());
+
+// API analytics middleware
+app.use(apiAnalyticsMiddleware);
+
+// Sandbox middleware for development testing
+app.use(sandboxMiddleware);
+
 // Performance monitoring middleware
 app.use(performanceMiddleware({ enableLoadBalancing: true }));
 app.use(resourceMonitoringMiddleware());
@@ -102,6 +117,9 @@ app.use(csrfProtection);
 
 // User context middleware (after auth middleware would be applied)
 app.use(userContextMiddleware);
+
+// Setup enhanced API documentation
+setupSwagger(app);
 
 // Health check routes (with permissive rate limiting)
 app.use('/health', healthCheckRateLimit, healthRoutes);
@@ -149,6 +167,12 @@ app.use('/api/categories', generalRateLimit, categoriesRoutes);
 app.use('/api/content-approval', generalRateLimit, contentApprovalRoutes);
 app.use('/api/content-versioning', generalRateLimit, contentVersioningRoutes);
 app.use('/api/content-calendar', generalRateLimit, contentCalendarRoutes);
+
+// Sandbox routes for development testing (no rate limiting)
+app.use('/sandbox', sandboxRoutes);
+
+// Developer dashboard and tools
+app.use('/api/developer', generalRateLimit, developerRoutes);
 
 // 404 handler (must be before error handler)
 app.use('*', notFoundHandler);
