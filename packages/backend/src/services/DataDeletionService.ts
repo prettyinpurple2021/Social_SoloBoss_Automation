@@ -56,7 +56,7 @@ export class DataDeletionService {
         const requestId = `del_${Date.now()}_${randomBytes(8).toString('hex')}`;
         const verificationToken = randomBytes(32).toString('hex');
         const verificationExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
-        
+
         const request: DeletionRequest = {
             id: requestId,
             userId,
@@ -305,7 +305,7 @@ export class DataDeletionService {
      */
     private async collectUserDataForDeletion(userId: string): Promise<any> {
         const client = await this.db.connect();
-        
+
         try {
             const userData = {
                 user: await this.getUserData(client, userId),
@@ -328,7 +328,18 @@ export class DataDeletionService {
      * Create backup before deletion
      */
     private async createDeletionBackup(requestId: string, userData: any): Promise<string> {
-        return await this.backupService.secureDeleteUserData(userData.user.id, `Deletion request: ${requestId}`);
+        // Create a full backup and return its location
+        const backupMetadata = await this.backupService.createFullBackup();
+
+        // Log the backup creation for the deletion request
+        loggerService.info('Created deletion backup', {
+            requestId,
+            userId: userData.user.id,
+            backupId: backupMetadata.id,
+            location: backupMetadata.location
+        });
+
+        return backupMetadata.location;
     }
 
     /**
@@ -336,7 +347,7 @@ export class DataDeletionService {
      */
     private async performDataDeletion(userId: string): Promise<DeletionSummary> {
         const client = await this.db.connect();
-        
+
         try {
             await client.query('BEGIN');
 
