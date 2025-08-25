@@ -116,8 +116,7 @@ router.post('/login', [
   try {
     const credentials: LoginCredentials = req.body;
     const ip = req.ip;
-    const userAgent = req.get('User-Agent');
-
+    const userAgent = req.get('User-Agent') || "";
     // Log login attempt
     await AuditLogService.logAuthenticationEvent(
       'login_attempt',
