@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { authenticateToken } from '../middleware/auth';
 import { PushNotificationService } from '../services/PushNotificationService';
-import { Database } from '../database/connection';
+import { db } from '../database/connection';
 
 const router = Router();
 

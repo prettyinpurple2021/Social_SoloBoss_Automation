@@ -96,7 +96,7 @@ export const securityHeaders = helmet({
   
   // Cross-Origin Embedder Policy
   crossOriginEmbedderPolicy: { 
-    policy: process.env.NODE_ENV === 'production' ? 'require-corp' : false 
+    policy: process.env.NODE_ENV === 'production' ? 'require-corp' : 'unsafe-none' 
   },
   
   // Cross-Origin Opener Policy

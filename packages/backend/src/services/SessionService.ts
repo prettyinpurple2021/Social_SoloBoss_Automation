@@ -1,5 +1,5 @@
 import { randomBytes } from 'crypto';
-import { CacheService } from './CacheService';
+import { cacheService } from './CacheService';
 import { Config } from '../config';
 
 export interface SessionData {
@@ -46,10 +46,10 @@ export class SessionService {
     };
 
     // Store session data
-    await CacheService.set(
+    await cacheService.set(
       `${this.SESSION_PREFIX}${sessionId}`,
-      JSON.stringify(sessionData),
-      this.SESSION_TTL
+      sessionData,
+      { ttl: this.SESSION_TTL }
     );
 
     // Track user sessions
@@ -64,16 +64,14 @@ export class SessionService {
   static async validateSession(sessionId: string): Promise<SessionValidationResult> {
     try {
       const sessionKey = `${this.SESSION_PREFIX}${sessionId}`;
-      const sessionDataStr = await CacheService.get(sessionKey);
+      const sessionData = await cacheService.get<SessionData>(sessionKey);
 
-      if (!sessionDataStr) {
+      if (!sessionData) {
         return {
           isValid: false,
           error: 'Session not found or expired'
         };
       }
-
-      const sessionData: SessionData = JSON.parse(sessionDataStr);
 
       if (!sessionData.isActive) {
         return {
@@ -84,7 +82,7 @@ export class SessionService {
 
       // Update last accessed time
       sessionData.lastAccessedAt = new Date();
-      await CacheService.set(sessionKey, JSON.stringify(sessionData), this.SESSION_TTL);
+      await cacheService.set(sessionKey, sessionData, { ttl: this.SESSION_TTL });
 
       return {
         isValid: true,
@@ -103,14 +101,13 @@ export class SessionService {
    */
   static async invalidateSession(sessionId: string): Promise<void> {
     const sessionKey = `${this.SESSION_PREFIX}${sessionId}`;
-    const sessionDataStr = await CacheService.get(sessionKey);
+    const sessionData = await cacheService.get<SessionData>(sessionKey);
 
-    if (sessionDataStr) {
-      const sessionData: SessionData = JSON.parse(sessionDataStr);
+    if (sessionData) {
       await this.removeUserSession(sessionData.userId, sessionId);
     }
 
-    await CacheService.delete(sessionKey);
+    await cacheService.delete(sessionKey);
   }
 
   /**
@@ -118,20 +115,18 @@ export class SessionService {
    */
   static async invalidateUserSessions(userId: string): Promise<void> {
     const userSessionsKey = `${this.USER_SESSIONS_PREFIX}${userId}`;
-    const sessionIdsStr = await CacheService.get(userSessionsKey);
+    const sessionIds = await cacheService.get<string[]>(userSessionsKey);
 
-    if (sessionIdsStr) {
-      const sessionIds: string[] = JSON.parse(sessionIdsStr);
-      
+    if (sessionIds) {
       // Remove all session data
       const deletePromises = sessionIds.map(sessionId => 
-        CacheService.delete(`${this.SESSION_PREFIX}${sessionId}`)
+        cacheService.delete(`${this.SESSION_PREFIX}${sessionId}`)
       );
       
       await Promise.all(deletePromises);
       
       // Clear user sessions list
-      await CacheService.delete(userSessionsKey);
+      await cacheService.delete(userSessionsKey);
     }
   }
 
@@ -140,22 +135,18 @@ export class SessionService {
    */
   static async getUserSessions(userId: string): Promise<SessionData[]> {
     const userSessionsKey = `${this.USER_SESSIONS_PREFIX}${userId}`;
-    const sessionIdsStr = await CacheService.get(userSessionsKey);
+    const sessionIds = await cacheService.get<string[]>(userSessionsKey);
 
-    if (!sessionIdsStr) {
+    if (!sessionIds) {
       return [];
     }
 
-    const sessionIds: string[] = JSON.parse(sessionIdsStr);
     const sessions: SessionData[] = [];
 
     for (const sessionId of sessionIds) {
-      const sessionDataStr = await CacheService.get(`${this.SESSION_PREFIX}${sessionId}`);
-      if (sessionDataStr) {
-        const sessionData: SessionData = JSON.parse(sessionDataStr);
-        if (sessionData.isActive) {
-          sessions.push(sessionData);
-        }
+      const sessionData = await cacheService.get<SessionData>(`${this.SESSION_PREFIX}${sessionId}`);
+      if (sessionData && sessionData.isActive) {
+        sessions.push(sessionData);
       }
     }
 
@@ -183,12 +174,7 @@ export class SessionService {
    */
   private static async addUserSession(userId: string, sessionId: string): Promise<void> {
     const userSessionsKey = `${this.USER_SESSIONS_PREFIX}${userId}`;
-    const sessionIdsStr = await CacheService.get(userSessionsKey);
-    
-    let sessionIds: string[] = [];
-    if (sessionIdsStr) {
-      sessionIds = JSON.parse(sessionIdsStr);
-    }
+    let sessionIds = await cacheService.get<string[]>(userSessionsKey) || [];
     
     sessionIds.push(sessionId);
     
@@ -196,11 +182,11 @@ export class SessionService {
     if (sessionIds.length > 10) {
       const oldSessionId = sessionIds.shift();
       if (oldSessionId) {
-        await CacheService.delete(`${this.SESSION_PREFIX}${oldSessionId}`);
+        await cacheService.delete(`${this.SESSION_PREFIX}${oldSessionId}`);
       }
     }
     
-    await CacheService.set(userSessionsKey, JSON.stringify(sessionIds), this.SESSION_TTL);
+    await cacheService.set(userSessionsKey, sessionIds, { ttl: this.SESSION_TTL });
   }
 
   /**
@@ -208,17 +194,35 @@ export class SessionService {
    */
   private static async removeUserSession(userId: string, sessionId: string): Promise<void> {
     const userSessionsKey = `${this.USER_SESSIONS_PREFIX}${userId}`;
-    const sessionIdsStr = await CacheService.get(userSessionsKey);
+    const sessionIds = await cacheService.get<string[]>(userSessionsKey);
     
-    if (sessionIdsStr) {
-      let sessionIds: string[] = JSON.parse(sessionIdsStr);
-      sessionIds = sessionIds.filter(id => id !== sessionId);
+    if (sessionIds) {
+      const filteredIds = sessionIds.filter(id => id !== sessionId);
       
-      if (sessionIds.length > 0) {
-        await CacheService.set(userSessionsKey, JSON.stringify(sessionIds), this.SESSION_TTL);
+      if (filteredIds.length > 0) {
+        await cacheService.set(userSessionsKey, filteredIds, { ttl: this.SESSION_TTL });
       } else {
-        await CacheService.delete(userSessionsKey);
+        await cacheService.delete(userSessionsKey);
       }
+    }
+  }
+
+  /**
+   * Validate access token
+   */
+  static async validateAccessToken(accessToken: string): Promise<{ userId: string; sessionId: string }> {
+    // This is a simplified implementation
+    // In a real app, you'd decode and validate the JWT token
+    try {
+      // For now, we'll assume the token contains the user ID
+      // In practice, you'd use a JWT library to decode and validate
+      const decoded = JSON.parse(Buffer.from(accessToken.split('.')[1], 'base64').toString());
+      return {
+        userId: decoded.userId,
+        sessionId: decoded.sessionId
+      };
+    } catch (error) {
+      throw new Error('Invalid access token');
     }
   }
 }

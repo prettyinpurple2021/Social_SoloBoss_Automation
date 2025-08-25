@@ -72,12 +72,12 @@ export const authenticateToken = async (
 
     // Record successful authentication
     monitoringService.incrementCounter('auth_success', 1, {
-      method: authResult.method,
+      method: authResult.method || 'unknown',
       userId: authResult.user!.id
     });
 
     monitoringService.recordHistogram('auth_duration', Date.now() - startTime, {
-      method: authResult.method
+      method: authResult.method || 'unknown'
     });
 
     next();
@@ -186,7 +186,7 @@ async function tryApiKeyAuth(req: Request): Promise<AuthResult> {
       validation.keyId!,
       req.path,
       req.method,
-      req.ip,
+      req.ip || 'unknown',
       req.headers['user-agent'] || '',
       200, // Will be updated later if needed
       0 // Will be updated later
@@ -403,7 +403,7 @@ export const requireAdmin = (req: Request, res: Response, next: NextFunction): v
   // Check if user has admin permission
   const isAdmin = req.authMethod === 'api_key' 
     ? req.permissions?.includes('admin:all')
-    : req.user.role === 'admin'; // Assuming user has role field
+    : (req.user.role || 'user') === 'admin'; // Assuming user has role field
 
   if (!isAdmin) {
     loggerService.security('Admin access denied', {

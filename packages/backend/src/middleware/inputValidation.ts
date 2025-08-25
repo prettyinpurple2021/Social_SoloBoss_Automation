@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import multer from 'multer';
 import { loggerService } from '../services/LoggerService';
 import { monitoringService } from '../services/MonitoringService';
 import { AppError, ErrorCode, ErrorSeverity } from '../types/errors';
@@ -271,7 +272,7 @@ export class InputValidationMiddleware {
         const maliciousPatterns = this.detectMaliciousPatterns(inputData);
 
         if (maliciousPatterns.length > 0) {
-          loggerService.error('Malicious input on sensitive endpoint', {
+          loggerService.error('Malicious input on sensitive endpoint', new Error('Malicious input detected'), {
             patterns: maliciousPatterns,
             path: req.path,
             method: req.method,
@@ -309,11 +310,11 @@ export class InputValidationMiddleware {
   static validateFileUpload(allowedTypes: string[] = [], maxSize: number = 10 * 1024 * 1024) {
     return (req: Request, res: Response, next: NextFunction): void => {
       try {
-        if (!req.file && !req.files) {
+        if (!(req as any).file && !(req as any).files) {
           return next();
         }
 
-        const files = req.files ? (Array.isArray(req.files) ? req.files : [req.file]) : [req.file];
+        const files = (req as any).files ? (Array.isArray((req as any).files) ? (req as any).files : [(req as any).file]) : [(req as any).file];
 
         for (const file of files) {
           if (!file) continue;

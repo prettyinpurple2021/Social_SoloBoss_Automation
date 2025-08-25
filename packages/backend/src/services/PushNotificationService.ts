@@ -1,5 +1,5 @@
 import webpush from 'web-push';
-import { Database } from '../database/connection';
+import { db } from '../database/connection';
 
 interface PushSubscription {
   endpoint: string;
@@ -242,7 +242,7 @@ export class PushNotificationService {
     return result.rows;
   }
 
-  async getVapidPublicKey(): string {
+  async getVapidPublicKey(): Promise<string> {
     return process.env.VAPID_PUBLIC_KEY || 'BEl62iUYgUivxIkv69yViEuiBIa40HI80NM9LUhbKbVPLfzYKCrAh4u7WgPSi6YoMKGYLqjbOjBSRD8a9DtFHkI';
   }
 

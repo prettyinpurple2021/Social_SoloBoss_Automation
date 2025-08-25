@@ -76,10 +76,12 @@ export interface NotificationSettings {
 // Database row interfaces (matching database schema)
 export interface UserRow {
   id: string;
+  userId: string; // Alias for id for compatibility
   email: string;
   name: string;
   password_hash: string;
   settings: UserSettings;
+  role?: string; // User role (admin, user, etc.)
   created_at: Date;
   updated_at: Date;
 }

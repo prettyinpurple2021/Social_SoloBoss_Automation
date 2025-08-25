@@ -307,7 +307,7 @@ export class ContentApprovalRequestModel {
 
     if (currentStep !== undefined) {
       query += `, current_step = $${paramCount}`;
-      values.push(currentStep);
+      values.push(currentStep.toString());
       paramCount++;
     }
 

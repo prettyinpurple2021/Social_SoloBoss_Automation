@@ -127,7 +127,7 @@ router.post('/login', [
       userAgent
     );
 
-    const result = await AuthService.login(credentials);
+    const result = await AuthService.login(credentials, ip, userAgent);
 
     if (!result.success) {
       // Log failed login

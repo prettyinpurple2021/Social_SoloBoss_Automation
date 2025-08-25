@@ -27,12 +27,14 @@
     "docs:api": "npm run build --workspace=@sma/backend && node -e \"const { generateSwaggerSpec } = require('./packages/backend/dist/docs/swagger.js'); const fs = require('fs'); const spec = generateSwaggerSpec(); fs.writeFileSync('docs/api-spec.json', JSON.stringify(spec, null, 2));\""
   },
   "devDependencies": {
-    "@typescript-eslint/eslint-plugin": "^6.0.0",
-    "@typescript-eslint/parser": "^6.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.21.0",
+    "@typescript-eslint/parser": "^6.21.0",
     "concurrently": "^8.2.0",
     "eslint": "^8.45.0",
-    "eslint-config-prettier": "^8.8.0",
-    "eslint-plugin-prettier": "^5.0.0",
+    "eslint-config-prettier": "^8.10.2",
+    "eslint-plugin-prettier": "^5.5.4",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-refresh": "^0.4.20",
     "prettier": "^3.0.0",
     "typescript": "^5.1.0"
   },

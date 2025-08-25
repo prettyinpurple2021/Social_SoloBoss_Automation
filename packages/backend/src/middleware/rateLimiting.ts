@@ -368,7 +368,7 @@ export const strictRateLimit = rateLimit({
   handler: (req: Request, res: Response) => {
     const ip = req.ip || req.connection.remoteAddress || 'unknown';
     
-    loggerService.error('Strict rate limit exceeded', {
+    loggerService.error('Strict rate limit exceeded', new Error('Rate limit exceeded'), {
       ip,
       userId: req.user?.id,
       path: req.path,

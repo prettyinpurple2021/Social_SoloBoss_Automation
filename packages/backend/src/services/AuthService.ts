@@ -750,4 +750,17 @@ export class AuthService {
       loggerService.error('Failed to cleanup expired sessions', error as Error);
     }
   }
+
+  /**
+   * Get user by ID
+   */
+  static async getUserById(userId: string): Promise<UserRow | null> {
+    try {
+      const user = await UserModel.findById(userId);
+      return user;
+    } catch (error) {
+      loggerService.error('Failed to get user by ID', error as Error, { userId });
+      return null;
+    }
+  }
 }
