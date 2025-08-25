@@ -8,7 +8,7 @@ dotenv.config();
 const envSchema = z.object({
   // Application
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
-  PORT: z.string().transform(Number).default(3001),
+  PORT: z.string().transform(Number).default('3001'),
   FRONTEND_URL: z.string().url().default('http://localhost:3000'),
   
   // Database
@@ -52,29 +52,29 @@ const envSchema = z.object({
   CORS_ORIGIN: z.string().default('http://localhost:3000'),
   
   // Rate Limiting
-  RATE_LIMIT_WINDOW_MS: z.string().transform(Number).default(900000), // 15 minutes
-  RATE_LIMIT_MAX_REQUESTS: z.string().transform(Number).default(100),
+  RATE_LIMIT_WINDOW_MS: z.string().transform(Number).default('900000'), // 15 minutes
+  RATE_LIMIT_MAX_REQUESTS: z.string().transform(Number).default('100'),
   
   // Queue Configuration
   QUEUE_REDIS_URL: z.string().optional(),
-  QUEUE_CONCURRENCY: z.string().transform(Number).default(5),
+  QUEUE_CONCURRENCY: z.string().transform(Number).default('5'),
   
   // Webhook Configuration
-  WEBHOOK_TIMEOUT_MS: z.string().transform(Number).default(10000),
-  WEBHOOK_RETRY_ATTEMPTS: z.string().transform(Number).default(3),
+  WEBHOOK_TIMEOUT_MS: z.string().transform(Number).default('10000'),
+  WEBHOOK_RETRY_ATTEMPTS: z.string().transform(Number).default('3'),
   
   // Analytics
-  ANALYTICS_RETENTION_DAYS: z.string().transform(Number).default(365),
+  ANALYTICS_RETENTION_DAYS: z.string().transform(Number).default('365'),
   
   // Security
-  BCRYPT_ROUNDS: z.string().transform(Number).default(12),
-  SESSION_TIMEOUT_HOURS: z.string().transform(Number).default(24),
+  BCRYPT_ROUNDS: z.string().transform(Number).default('12'),
+  SESSION_TIMEOUT_HOURS: z.string().transform(Number).default('24'),
   
   // Feature Flags
-  ENABLE_ANALYTICS: z.string().transform(val => val === 'true').default(true),
-  ENABLE_WEBHOOKS: z.string().transform(val => val === 'true').default(true),
-  ENABLE_RATE_LIMITING: z.string().transform(val => val === 'true').default(true),
-  ENABLE_CACHING: z.string().transform(val => val === 'true').default(true)
+  ENABLE_ANALYTICS: z.string().transform(val => val === 'true').default('true'),
+  ENABLE_WEBHOOKS: z.string().transform(val => val === 'true').default('true'),
+  ENABLE_RATE_LIMITING: z.string().transform(val => val === 'true').default('true'),
+  ENABLE_CACHING: z.string().transform(val => val === 'true').default('true')
 });
 
 // Validate and parse environment variables

@@ -44,7 +44,7 @@ export class InputValidationMiddleware {
    */
   private static readonly PATH_TRAVERSAL_PATTERNS = [
     /\.\.\//g,
-    /\.\.\\g,
+    /\.\.\\/g,
     /%2e%2e%2f/gi,
     /%2e%2e%5c/gi,
     /\.\.%2f/gi,
